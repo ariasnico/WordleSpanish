@@ -1,0 +1,139 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+@keyframes popIn {
+    0% {
+        transform: scale(0.8);
+        opacity: 0;
+    }
+    40% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-5px); }
+    75% { transform: translateX(5px); }
+}
+
+@keyframes bounce {
+    0%, 20% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-30px);
+    }
+    50% {
+        transform: translateY(5px);
+    }
+    60% {
+        transform: translateY(-15px);
+    }
+    80% {
+        transform: translateY(2px);
+    }
+    100% {
+        transform: translateY(0);
+    }
+}
+
+body {
+    background-color: white;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+}
+
+.container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+    text-align: center;
+}
+
+h1 {
+    margin-bottom: 20px;
+    color: #333;
+}
+
+#game-board {
+    display: grid;
+    grid-template-rows: repeat(6, 60px);
+    gap: 5px;
+    margin: 20px auto;
+    max-width: 330px;
+}
+
+.row {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+}
+
+.tile {
+    aspect-ratio: 1;
+    border: 2px solid #333;
+    background-color: #f5f5f5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    transition: all 0.2s ease;
+}
+
+.tile.active {
+    border-color: #666;
+    background-color: #e0e0e0;
+}
+
+.tile.pop {
+    animation: popIn 0.15s ease-in-out forwards;
+}
+
+.tile.shake {
+    animation: shake 0.5s ease-in-out;
+}
+
+.tile.correct {
+    background-color: #6aaa64;
+    color: white;
+    border-color: #6aaa64;
+    animation: bounce 0.8s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+}
+
+.tile.wrong-position {
+    background-color: #c9b458;
+    color: white;
+    border-color: #c9b458;
+    animation: bounce 0.8s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+}
+
+.tile.incorrect {
+    background-color: #787c7e;
+    color: white;
+    border-color: #787c7e;
+    animation: bounce 0.8s cubic-bezier(0.36, 0, 0.66, -0.56) forwards;
+}
+
+#mensaje {
+    font-size: 1.2rem;
+    margin-top: 20px;
+    color: #333;
+    min-height: 2em;
+}
+
+.continue-message {
+    color: #6aaa64;
+    font-weight: bold;
+    margin-top: 10px;
+    animation: popIn 0.3s ease-in-out;
+} 
