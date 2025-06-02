@@ -194,20 +194,40 @@ h1 {
 
 @media (max-width: 500px) {
     .key {
-        font-size: 0.9rem;
-        min-width: 1.8em;
-        padding: 0.8em 0.3em;
+        font-size: 1.1rem;
+        min-width: 2.2em;
+        padding: 1em 0.4em;
+        margin: 2px;
     }
     
     .key.wide {
-        min-width: 3em;
+        min-width: 3.5em;
     }
     
     #game-board {
         margin: 10px auto;
+        grid-template-rows: repeat(6, 55px);
     }
     
     .tile {
         font-size: 1.5rem;
+    }
+
+    #virtual-keyboard {
+        padding: 15px 5px;
+        margin: 10px auto;
+    }
+
+    .keyboard-row {
+        margin-bottom: 8px;
+    }
+
+    .container {
+        padding: 10px;
+    }
+
+    h1 {
+        font-size: 1.8rem;
+        margin-bottom: 15px;
     }
 } 
