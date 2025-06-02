@@ -28,6 +28,14 @@ let letraActual = 0;
 let juegoTerminado = false;
 let esperandoNuevoJuego = false;
 let procesando = false;
+let tecladoVirtual = {};
+
+// Configuración del teclado
+const TECLADO_LAYOUT = [
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ñ'],
+    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫']
+];
 
 // Función para verificar si una palabra contiene tildes
 function contieneTildes(palabra) {
@@ -166,6 +174,15 @@ function reiniciarJuego() {
     crearTablero();
     inicializarPalabraObjetivo();
     
+    // Resetear el teclado virtual
+    Object.values(tecladoVirtual).forEach(tecla => {
+        if (!tecla.classList.contains('wide')) {
+            tecla.className = 'key';
+        } else {
+            tecla.className = 'key wide';
+        }
+    });
+    
     document.getElementById('mensaje').textContent = '';
 }
 
@@ -184,6 +201,59 @@ function crearTablero() {
         }
         
         tablero.appendChild(row);
+    }
+}
+
+// Crear el teclado virtual
+function crearTecladoVirtual() {
+    const keyboard = document.getElementById('virtual-keyboard');
+    keyboard.innerHTML = '';
+
+    TECLADO_LAYOUT.forEach(row => {
+        const keyboardRow = document.createElement('div');
+        keyboardRow.className = 'keyboard-row';
+
+        row.forEach(key => {
+            const button = document.createElement('button');
+            button.className = 'key';
+            button.textContent = key;
+            
+            if (key === 'ENTER' || key === '⌫') {
+                button.classList.add('wide');
+            }
+
+            button.addEventListener('click', () => {
+                let keyValue = key;
+                if (key === '⌫') {
+                    keyValue = 'Backspace';
+                }
+                manejarTecla(keyValue);
+            });
+
+            tecladoVirtual[key] = button;
+            keyboardRow.appendChild(button);
+        });
+
+        keyboard.appendChild(keyboardRow);
+    });
+}
+
+// Actualizar el estado visual del teclado
+function actualizarTecladoVirtual(palabra, resultados) {
+    for (let i = 0; i < palabra.length; i++) {
+        const letra = palabra[i].toUpperCase();
+        const resultado = resultados[i];
+        const tecla = tecladoVirtual[letra];
+
+        if (tecla) {
+            if (resultado === 'correct') {
+                tecla.className = 'key correct';
+            } else if (resultado === 'wrong-position' && !tecla.classList.contains('correct')) {
+                tecla.className = 'key wrong-position';
+            } else if (resultado === 'incorrect' && !tecla.classList.contains('correct') && !tecla.classList.contains('wrong-position')) {
+                tecla.className = 'key incorrect';
+            }
+        }
     }
 }
 
@@ -261,13 +331,15 @@ async function verificarPalabra() {
         }
     }
 
-    // Aplicar animaciones
+    // Aplicar animaciones y actualizar teclado virtual
     for (let i = 0; i < 5; i++) {
         await new Promise(resolve => setTimeout(() => {
             tiles[i].classList.add(resultados[i]);
             resolve();
         }, i * 100));
     }
+
+    actualizarTecladoVirtual(palabra, resultados);
 
     // Verificar victoria o derrota
     if (palabra === palabraObjetivo) {
@@ -370,6 +442,7 @@ function mostrarMensajeContinuar() {
 document.addEventListener('DOMContentLoaded', () => {
     inicializarPalabraObjetivo();
     crearTablero();
+    crearTecladoVirtual();
     
     document.addEventListener('keydown', (e) => {
         manejarTecla(e.key);
