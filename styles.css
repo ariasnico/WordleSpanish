@@ -206,11 +206,9 @@ h1 {
     
     #game-board {
         margin: 15px auto;
-        gap: 5px;
+        gap: 6px; /* Aumentado para mayor espaciado vertical entre filas */
         grid-template-rows: repeat(6, 42px);
         max-width: 280px;
-        row-gap: 5px;
-        column-gap: 5px;
     }
     
     .row {
@@ -245,4 +243,4 @@ h1 {
         font-size: 1.8rem;
         margin-bottom: 15px;
     }
-} 
+}
