@@ -378,7 +378,7 @@ function manejarTecla(key) {
     
     if (juegoTerminado) return;
 
-    if (key === 'Enter') {
+    if (key === 'Enter' || key === 'ENTER') {
         if (letraActual === 5) {
             verificarPalabra().catch(error => {
                 console.error('Error al verificar la palabra:', error);
@@ -393,7 +393,7 @@ function manejarTecla(key) {
         }
     }
 
-    if (key === 'Backspace') {
+    if (key === 'Backspace' || key === '⌫') {
         if (letraActual > 0) {
             letraActual--;
             const tile = document.querySelector(`.row:nth-child(${intentoActual + 1}) .tile:nth-child(${letraActual + 1})`);
