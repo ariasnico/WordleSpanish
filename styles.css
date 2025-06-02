@@ -207,17 +207,22 @@ h1 {
     #game-board {
         margin: 15px auto;
         gap: 5px;
-        grid-template-rows: repeat(6, 45px);
+        grid-template-rows: repeat(6, 42px);
         max-width: 280px;
+        row-gap: 5px;
+        column-gap: 5px;
     }
     
     .row {
         gap: 5px;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
     }
     
     .tile {
         font-size: 1.4rem;
         border-width: 1.5px;
+        aspect-ratio: 1;
     }
 
     #virtual-keyboard {
