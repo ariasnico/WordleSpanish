@@ -34,7 +34,7 @@ let tecladoVirtual = {};
 const TECLADO_LAYOUT = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
     ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ñ'],
-    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '⌫']
+    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '←']
 ];
 
 // Función para verificar si una palabra contiene tildes
@@ -218,13 +218,13 @@ function crearTecladoVirtual() {
             button.className = 'key';
             button.textContent = key;
             
-            if (key === 'ENTER' || key === '⌫') {
+            if (key === 'ENTER' || key === '←') {
                 button.classList.add('wide');
             }
 
             button.addEventListener('click', () => {
                 let keyValue = key;
-                if (key === '⌫') {
+                if (key === '←') {
                     keyValue = 'Backspace';
                 }
                 manejarTecla(keyValue);
@@ -393,7 +393,7 @@ function manejarTecla(key) {
         }
     }
 
-    if (key === 'Backspace' || key === '⌫') {
+    if (key === 'Backspace' || key === '←') {
         if (letraActual > 0) {
             letraActual--;
             const tile = document.querySelector(`.row:nth-child(${intentoActual + 1}) .tile:nth-child(${letraActual + 1})`);

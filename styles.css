@@ -205,10 +205,10 @@ h1 {
     }
     
     #game-board {
-        margin: 10px auto;
+        margin: 15px auto;
         gap: 5px;
-        grid-template-rows: repeat(6, 50px);
-        max-width: 300px;
+        grid-template-rows: repeat(6, 45px);
+        max-width: 280px;
     }
     
     .row {
@@ -217,21 +217,23 @@ h1 {
     
     .tile {
         font-size: 1.4rem;
+        border-width: 1.5px;
     }
 
     #virtual-keyboard {
-        padding: 12px 5px;
-        margin: 10px auto;
-        max-width: 400px;
+        padding: 12px 3px;
+        margin: 15px auto;
+        max-width: 380px;
     }
 
     .keyboard-row {
         margin-bottom: 6px;
-        gap: 4px;
+        gap: 3.5px;
+        padding: 0 2px;
     }
 
     .container {
-        padding: 10px;
+        padding: 10px 5px;
     }
 
     h1 {
