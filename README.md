@@ -21,7 +21,7 @@ Una versión en español del popular juego Wordle, desarrollada con HTML, CSS y 
 
 ## Jugar ahora
 
-Puedes jugar al juego en línea aquí: [Wordle en Español](https://TU_USUARIO_GITHUB.github.io/wordle-espanol)
+Puedes jugar al juego en línea aquí: [Wordle en Español](https://ariasnico.github.io/WordleSpanish)
 
 ## Desarrollo local
 
