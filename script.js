@@ -33,7 +33,7 @@ let tecladoVirtual = {};
 // Configuración del teclado
 const TECLADO_LAYOUT = [
     ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L', 'Ñ'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
     ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '←']
 ];
 
@@ -428,6 +428,18 @@ function sacudirFila() {
 function mostrarMensaje(texto) {
     const mensaje = document.getElementById('mensaje');
     mensaje.textContent = texto;
+    
+    // Limpiar cualquier timeout previo
+    if (window.mensajeTimeout) {
+        clearTimeout(window.mensajeTimeout);
+    }
+    
+    // Si es un mensaje de error, hacer que desaparezca después de 3 segundos
+    if (texto.includes('no existe') || texto.includes('debe tener') || texto.includes('no puede contener') || texto.includes('Error al verificar')) {
+        window.mensajeTimeout = setTimeout(() => {
+            mensaje.textContent = '';
+        }, 3000);
+    }
 }
 
 function mostrarMensajeContinuar() {

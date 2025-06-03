@@ -209,7 +209,7 @@ h1 {
         gap: 6px; /* Aumentado para mayor espaciado vertical entre filas */
         grid-template-rows: repeat(6, 42px);
         max-width: 280px;
-        row-gap: 8px;
+        row-gap: 12px;
         column-gap: 5px;
     }
     
