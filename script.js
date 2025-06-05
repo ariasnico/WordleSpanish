@@ -30,6 +30,7 @@ let esperandoNuevoJuego = false;
 let procesando = false;
 let tecladoVirtual = {};
 let racha = 0;
+let temaActual = 'light';
 
 // Configuración del teclado
 const TECLADO_LAYOUT = [
@@ -314,10 +315,6 @@ async function verificarPalabra() {
         letrasRestantes[letra] = (letrasRestantes[letra] || 0) + 1;
     });
 
-    tiles.forEach(tile => {
-        tile.classList.remove('correct', 'wrong-position', 'incorrect');
-    });
-
     const resultados = new Array(5).fill('incorrect');
     
     for (let i = 0; i < 5; i++) {
@@ -334,17 +331,33 @@ async function verificarPalabra() {
         }
     }
 
-    // Aplicar animaciones y actualizar teclado virtual
+    console.log('Resultados:', resultados);
+    console.log('Palabra objetivo:', palabraObjetivo);
+
+    // Aplicar animaciones de revelado secuenciales
     for (let i = 0; i < 5; i++) {
-        await new Promise(resolve => setTimeout(() => {
-            tiles[i].classList.add(resultados[i]);
-            resolve();
-        }, i * 100));
+        setTimeout(() => {
+            const tile = tiles[i];
+            
+            // Agregar clase de resultado y animación
+            tile.classList.add(resultados[i]);
+            tile.classList.add('revealed');
+            
+            console.log(`Ficha ${i} revelada:`, resultados[i]);
+            
+            // Remover la clase de animación después de que termine
+            setTimeout(() => {
+                tile.classList.remove('revealed');
+            }, 800);
+            
+        }, i * 200);
     }
 
     actualizarTecladoVirtual(palabra, resultados);
 
-    // Verificar victoria o derrota
+    // Esperar a que terminen las animaciones
+    await new Promise(resolve => setTimeout(resolve, 1300));
+
     if (palabra === palabraObjetivo) {
         racha++;
         actualizarRacha();
@@ -478,12 +491,52 @@ function celebrarRacha() {
     }
 }
 
+// Función para cargar tema desde localStorage
+function cargarTema() {
+    const temaGuardado = localStorage.getItem('wordle-theme');
+    if (temaGuardado) {
+        temaActual = temaGuardado;
+    } else {
+        // Detectar preferencia del sistema
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            temaActual = 'dark';
+        }
+    }
+    aplicarTema();
+}
+
+// Función para aplicar el tema
+function aplicarTema() {
+    const body = document.body;
+    const themeIcon = document.querySelector('.theme-icon');
+    
+    if (temaActual === 'dark') {
+        body.setAttribute('data-theme', 'dark');
+        themeIcon.textContent = '☀️';
+    } else {
+        body.removeAttribute('data-theme');
+        themeIcon.textContent = '🌙';
+    }
+}
+
+// Función para alternar tema
+function alternarTema() {
+    temaActual = temaActual === 'light' ? 'dark' : 'light';
+    aplicarTema();
+    localStorage.setItem('wordle-theme', temaActual);
+}
+
 // Inicializar el juego
 document.addEventListener('DOMContentLoaded', () => {
+    cargarTema();
     inicializarPalabraObjetivo();
     crearTablero();
     crearTecladoVirtual();
     actualizarRacha();
+    
+    // Agregar event listener para el botón de tema
+    const themeToggle = document.getElementById('theme-toggle');
+    themeToggle.addEventListener('click', alternarTema);
     
     document.addEventListener('keydown', (e) => {
         manejarTecla(e.key);
