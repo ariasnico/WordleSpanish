@@ -29,6 +29,7 @@ let juegoTerminado = false;
 let esperandoNuevoJuego = false;
 let procesando = false;
 let tecladoVirtual = {};
+let racha = 0;
 
 // Configuración del teclado
 const TECLADO_LAYOUT = [
@@ -173,6 +174,7 @@ function reiniciarJuego() {
     
     crearTablero();
     inicializarPalabraObjetivo();
+    actualizarRacha();
     
     // Resetear el teclado virtual
     Object.values(tecladoVirtual).forEach(tecla => {
@@ -184,6 +186,7 @@ function reiniciarJuego() {
     });
     
     document.getElementById('mensaje').textContent = '';
+    document.getElementById('racha').classList.remove('hidden');
 }
 
 // Crear el tablero de juego
@@ -343,6 +346,9 @@ async function verificarPalabra() {
 
     // Verificar victoria o derrota
     if (palabra === palabraObjetivo) {
+        racha++;
+        actualizarRacha();
+        celebrarRacha();
         await new Promise(resolve => setTimeout(() => {
             mostrarMensaje('¡Felicitaciones! ¡Has ganado!');
             mostrarMensajeContinuar();
@@ -352,6 +358,8 @@ async function verificarPalabra() {
             resolve();
         }, 600));
     } else if (intentoActual === 5) {
+        racha = 0;
+        actualizarRacha();
         await new Promise(resolve => setTimeout(() => {
             mostrarMensaje(`¡Juego terminado! La palabra era: ${palabraObjetivo}`);
             mostrarMensajeContinuar();
@@ -427,6 +435,8 @@ function sacudirFila() {
 
 function mostrarMensaje(texto) {
     const mensaje = document.getElementById('mensaje');
+    const rachaElement = document.getElementById('racha');
+    
     mensaje.textContent = texto;
     
     // Limpiar cualquier timeout previo
@@ -434,10 +444,13 @@ function mostrarMensaje(texto) {
         clearTimeout(window.mensajeTimeout);
     }
     
-    // Si es un mensaje de error, hacer que desaparezca después de 3 segundos
+    // Si es un mensaje de error, hacer que la racha se desvanezca y aparezca el mensaje
     if (texto.includes('no existe') || texto.includes('debe tener') || texto.includes('no puede contener') || texto.includes('Error al verificar')) {
+        rachaElement.classList.add('hidden');
+        
         window.mensajeTimeout = setTimeout(() => {
             mensaje.textContent = '';
+            rachaElement.classList.remove('hidden');
         }, 3000);
     }
 }
@@ -450,11 +463,27 @@ function mostrarMensajeContinuar() {
     mensaje.appendChild(continueMsg);
 }
 
+function actualizarRacha() {
+    const rachaElement = document.getElementById('racha');
+    rachaElement.innerHTML = `Racha: ${racha}<span class="fire-emoji">🔥</span>`;
+}
+
+function celebrarRacha() {
+    const fireEmoji = document.querySelector('.fire-emoji');
+    if (fireEmoji) {
+        fireEmoji.classList.add('celebrate');
+        setTimeout(() => {
+            fireEmoji.classList.remove('celebrate');
+        }, 1500);
+    }
+}
+
 // Inicializar el juego
 document.addEventListener('DOMContentLoaded', () => {
     inicializarPalabraObjetivo();
     crearTablero();
     crearTecladoVirtual();
+    actualizarRacha();
     
     document.addEventListener('keydown', (e) => {
         manejarTecla(e.key);

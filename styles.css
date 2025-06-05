@@ -138,6 +138,25 @@ h1 {
     animation: popIn 0.3s ease-in-out;
 }
 
+#racha-container {
+    margin: 15px auto 10px auto;
+    text-align: center;
+    position: relative;
+    min-height: 1.5em;
+}
+
+#racha {
+    font-size: 1.3rem;
+    font-weight: bold;
+    color: #6aaa64;
+    transition: opacity 0.3s ease;
+    opacity: 1;
+}
+
+#racha.hidden {
+    opacity: 0.3;
+}
+
 #virtual-keyboard {
     display: grid;
     gap: 5px;
@@ -244,5 +263,37 @@ h1 {
     h1 {
         font-size: 1.8rem;
         margin-bottom: 15px;
+    }
+}
+
+.fire-emoji {
+    display: inline-block;
+    transition: transform 0.2s ease;
+}
+
+.fire-emoji.celebrate {
+    animation: fireGlow 1.5s ease-in-out;
+}
+
+@keyframes fireGlow {
+    0% { 
+        transform: scale(1); 
+        filter: drop-shadow(0 0 5px #ff6b35);
+    }
+    25% { 
+        transform: scale(1.4) rotate(-5deg); 
+        filter: drop-shadow(0 0 15px #ff6b35);
+    }
+    50% { 
+        transform: scale(1.6) rotate(5deg); 
+        filter: drop-shadow(0 0 20px #ff6b35);
+    }
+    75% { 
+        transform: scale(1.4) rotate(-5deg); 
+        filter: drop-shadow(0 0 15px #ff6b35);
+    }
+    100% { 
+        transform: scale(1); 
+        filter: drop-shadow(0 0 5px #ff6b35);
     }
 }
