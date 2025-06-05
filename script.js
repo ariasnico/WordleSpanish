@@ -497,10 +497,8 @@ function cargarTema() {
     if (temaGuardado) {
         temaActual = temaGuardado;
     } else {
-        // Detectar preferencia del sistema
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            temaActual = 'dark';
-        }
+        // Por defecto siempre usar tema claro
+        temaActual = 'light';
     }
     aplicarTema();
 }
