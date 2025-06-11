@@ -5,24 +5,78 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wordle en Español</title>
     <link rel="stylesheet" href="styles.css">
+    <!-- Auth0 SPA SDK -->
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
 </head>
 <body>
+    <!-- Panel de autenticación -->
+    <div id="auth-panel" class="auth-panel">
+        <div id="login-container" class="auth-container">
+            <h2>Inicia Sesión para Competir</h2>
+            <p>Conecta con Google para guardar tu racha máxima y competir en el ranking global</p>
+            <button id="login-btn" class="auth-btn">
+                <img src="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMTgiIGhlaWdodD0iMTgiIHZpZXdCb3g9IjAgMCAxOCAxOCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTE3LjY0IDkuMjA0NTVDMTcuNjQgOC41NjYzNiAxNy41ODM2IDcuOTUyNzMgMTcuNDggNy4zNjM2NEg5VjEwLjg0NTVIMTMuODQzNkMxMy42MzUgMTEuOTcgMTMuMDAwOSAxMi45MjMgMTIuMDQ3NyAxMy41NjE0VjE1LjgxODJIMTQuOTU2NUMxNi42NTg5IDEzLjI1NDUgMTcuNjQgMTEuNDIwOSAxNy42NCA5LjIwNDU1WiIgZmlsbD0iIzQyODVGNCIvPgo8cGF0aCBkPSJNOSAxOEM3LjI1IDEwLjE3IDEwLjM4NzMgNi45MiA5IDYuOTJDNy42MTI3IDYuOTIgNi40MiA3LjAwNDEgNS4zODY0IDcuMjY1OUwzIDkuNzVINi4xNDE4QzUuODU0NTUgMTAuMjU5MSA1Ljc1MDQ1IDEwLjgzMDkgNS43NSAxMS40MTgxVjE0LjI1SDE5VjE0LjY5NTVDMTkgMTYuMjE4MiAxOS43MjczIDE3LjI3NzMgMTkuMSAxOFoiIGZpbGw9IiMzNEE4NTMiLz4KPHBhdGggZD0iTTMuOTU0NTUgMTAuNjM2NEwzIDkuNzVIMC44MTM2NDNWOC4yNzI3M0MwLjMwNDU0NSA5LjY0MDkxIDAgMTEuMTQ1NSAwIDEyLjc3MjdDMCAxNC40IDEgMTYgMyAxNkg1VjE0LjI1SDE5VjE0LjY5NTVIMy45NTQ1NVoiIGZpbGw9IiNGQkJDMDQiLz4KPHBhdGggZD0iTTkgMy4yNzI3M0M5IDMuMjcyNzMgOS4yIDMuMjcyNzMgOS4zNjM2NCAzLjI3MjczSDEyLjA0NzdDMTIuNDI5IDIuNTA5MDkgMTMgMi4yNSAxNCAyLjI1VjBIOUM2Ljc1IDAgNC45NTQ1NSAwLjgxODE4IDMuOTU0NTUgMi4xODE4TDYuMjI3MjcgNC4yMjcyN0M2Ljk1IDMuNjEzNjQgNy44NjM2NCAzLjI3MjczIDkgMy4yNzI3M1oiIGZpbGw9IiNFQTQzMzUiLz4KPC9zdmc+" alt="Google">
+                Continuar con Google
+            </button>
+            <button id="guest-btn" class="auth-btn secondary">Jugar como Invitado</button>
+        </div>
+        
+        <div id="user-container" class="auth-container hidden">
+            <div class="user-info">
+                <img id="user-avatar" class="user-avatar" src="" alt="Avatar del usuario">
+                <div class="user-details">
+                    <h3 id="user-name">Usuario</h3>
+                    <p id="user-email">email@ejemplo.com</p>
+                </div>
+            </div>
+            <div class="user-stats">
+                <div class="stat">
+                    <span class="stat-value" id="max-streak">0</span>
+                    <span class="stat-label">Racha Máxima</span>
+                </div>
+                <div class="stat">
+                    <span class="stat-value" id="games-played">0</span>
+                    <span class="stat-label">Partidas Jugadas</span>
+                </div>
+            </div>
+            <button id="logout-btn" class="auth-btn secondary">Cerrar Sesión</button>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
+            <button id="scoreboard-btn" class="nav-btn">🏆</button>
             <h1>Wordle en Español</h1>
             <button id="theme-toggle" class="theme-toggle" aria-label="Cambiar tema">
                 <span class="theme-icon">🌙</span>
             </button>
         </div>
-        <div id="game-board">
-            <!-- La cuadrícula 5x6 se generará con JavaScript -->
+        
+        <!-- Scoreboard Modal -->
+        <div id="scoreboard-modal" class="modal hidden">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2>🏆 Ranking Global</h2>
+                    <button id="close-scoreboard" class="close-btn">&times;</button>
+                </div>
+                <div class="scoreboard-container">
+                    <div id="scoreboard-loading" class="loading">Cargando ranking...</div>
+                    <div id="scoreboard-list" class="scoreboard-list hidden"></div>
+                </div>
+            </div>
         </div>
-        <div id="racha-container">
-            <div id="racha">Racha: 0🔥</div>
-        </div>
-        <div id="mensaje"></div>
-        <div id="virtual-keyboard">
-            <!-- El teclado virtual se generará con JavaScript -->
+
+        <div id="game-container">
+            <div id="game-board">
+                <!-- La cuadrícula 5x6 se generará con JavaScript -->
+            </div>
+            <div id="racha-container">
+                <div id="racha">Racha: 0🔥</div>
+            </div>
+            <div id="mensaje"></div>
+            <div id="virtual-keyboard">
+                <!-- El teclado virtual se generará con JavaScript -->
+            </div>
         </div>
     </div>
     <script src="script.js"></script>

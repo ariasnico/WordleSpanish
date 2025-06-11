@@ -1,3 +1,22 @@
+// Configuración de Auth0
+const AUTH0_CONFIG = {
+    domain: 'dev-odty0l3abcja7dfs.us.auth0.com', // Ejemplo: dev-xxxxxxxx.us.auth0.com
+    clientId: 'Dt0d1zvYIVUgWfqyswJZGg84Ay98lkFc', // Ejemplo: abcd1234efgh5678...
+    redirectUri: window.location.origin,
+    responseType: 'code',
+    scope: 'openid profile email'
+};
+
+// Variables globales de autenticación
+let auth0Client = null;
+let usuario = null;
+let usuarioStats = {
+    maxStreak: 0,
+    gamesPlayed: 0,
+    currentStreak: 0
+};
+let modoInvitado = false;
+
 const palabras = [
     'GATOS', 'PERRO', 'LIBRO', 'VERDE', 'PLATO',
     'CARRO', 'PLAYA', 'FUEGO', 'CIELO', 'MUNDO',
@@ -21,7 +40,7 @@ const palabras = [
     'CAMAS', 'PECES', 'PILAR', 'MIRAR'
 ];
 
-// Variables globales
+// Variables globales del juego
 let palabraObjetivo;
 let intentoActual = 0;
 let letraActual = 0;
@@ -359,8 +378,7 @@ async function verificarPalabra() {
     await new Promise(resolve => setTimeout(resolve, 1300));
 
     if (palabra === palabraObjetivo) {
-        racha++;
-        actualizarRacha();
+        manejarFinJuego(true);
         celebrarRacha();
         await new Promise(resolve => setTimeout(() => {
             mostrarMensaje('¡Felicitaciones! ¡Has ganado!');
@@ -371,8 +389,7 @@ async function verificarPalabra() {
             resolve();
         }, 600));
     } else if (intentoActual === 5) {
-        racha = 0;
-        actualizarRacha();
+        manejarFinJuego(false);
         await new Promise(resolve => setTimeout(() => {
             mostrarMensaje(`¡Juego terminado! La palabra era: ${palabraObjetivo}`);
             mostrarMensajeContinuar();
@@ -477,8 +494,7 @@ function mostrarMensajeContinuar() {
 }
 
 function actualizarRacha() {
-    const rachaElement = document.getElementById('racha');
-    rachaElement.innerHTML = `Racha: ${racha}<span class="fire-emoji">🔥</span>`;
+    actualizarRachaConStats();
 }
 
 function celebrarRacha() {
@@ -524,13 +540,347 @@ function alternarTema() {
     localStorage.setItem('wordle-theme', temaActual);
 }
 
+// ========== FUNCIONES DE AUTENTICACIÓN ==========
+
+// Inicializar Auth0
+async function inicializarAuth0() {
+    try {
+        auth0Client = await createAuth0Client(AUTH0_CONFIG);
+        console.log('Auth0 inicializado correctamente');
+        
+        // Verificar si ya hay una sesión activa
+        const isAuthenticated = await auth0Client.isAuthenticated();
+        if (isAuthenticated) {
+            usuario = await auth0Client.getUser();
+            await cargarEstadisticasUsuario();
+            mostrarPanelUsuario();
+        } else {
+            // Verificar si estamos regresando de una redirección de Auth0
+            const query = window.location.search;
+            if (query.includes('code=') && query.includes('state=')) {
+                try {
+                    await auth0Client.handleRedirectCallback();
+                    usuario = await auth0Client.getUser();
+                    await cargarEstadisticasUsuario();
+                    mostrarPanelUsuario();
+                    // Limpiar la URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (error) {
+                    console.error('Error al manejar la redirección:', error);
+                    mostrarPanelLogin();
+                }
+            } else {
+                mostrarPanelLogin();
+            }
+        }
+    } catch (error) {
+        console.error('Error al inicializar Auth0:', error);
+        mostrarMensaje('Error de autenticación. Jugando como invitado.');
+        iniciarModoInvitado();
+    }
+}
+
+// Función de login
+async function login() {
+    try {
+        await auth0Client.loginWithRedirect({
+            connection: 'google-oauth2',
+            prompt: 'select_account'
+        });
+    } catch (error) {
+        console.error('Error en el login:', error);
+        mostrarMensaje('Error al iniciar sesión. Intenta de nuevo.');
+    }
+}
+
+// Función de logout
+async function logout() {
+    try {
+        await auth0Client.logout({
+            returnTo: window.location.origin
+        });
+    } catch (error) {
+        console.error('Error en el logout:', error);
+    }
+}
+
+// Iniciar modo invitado
+function iniciarModoInvitado() {
+    modoInvitado = true;
+    usuario = null;
+    usuarioStats = {
+        maxStreak: parseInt(localStorage.getItem('wordle-guest-max-streak') || '0'),
+        gamesPlayed: parseInt(localStorage.getItem('wordle-guest-games-played') || '0'),
+        currentStreak: 0
+    };
+    racha = parseInt(localStorage.getItem('wordle-guest-current-streak') || '0');
+    mostrarPanelUsuario(true);
+}
+
+// Mostrar panel de login
+function mostrarPanelLogin() {
+    document.getElementById('auth-panel').classList.remove('hidden');
+    document.getElementById('login-container').classList.remove('hidden');
+    document.getElementById('user-container').classList.add('hidden');
+    document.getElementById('game-container').style.display = 'none';
+}
+
+// Mostrar panel de usuario
+function mostrarPanelUsuario(esInvitado = false) {
+    document.getElementById('auth-panel').classList.add('hidden');
+    document.getElementById('game-container').style.display = 'block';
+    
+    if (!esInvitado && usuario) {
+        // Usuario autenticado
+        document.getElementById('user-avatar').src = usuario.picture || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNEREQiLz4KPGNpcmNsZSBjeD0iMjAiIGN5PSIxNiIgcj0iNiIgZmlsbD0iIzk5OSIvPgo8cGF0aCBkPSJNMzAgMzJDMzAgMjcuNTggMjUuNTIgMjQgMjAgMjRTMTAgMjcuNTggMTAgMzIiIGZpbGw9IiM5OTkiLz4KPC9zdmc+';
+        document.getElementById('user-name').textContent = usuario.name || 'Usuario';
+        document.getElementById('user-email').textContent = usuario.email || '';
+    }
+    
+    // Actualizar estadísticas
+    document.getElementById('max-streak').textContent = usuarioStats.maxStreak;
+    document.getElementById('games-played').textContent = usuarioStats.gamesPlayed;
+    
+    actualizarRacha();
+}
+
+// ========== FUNCIONES DE ESTADÍSTICAS Y SCOREBOARD ==========
+
+// Cargar estadísticas del usuario desde el servidor
+async function cargarEstadisticasUsuario() {
+    if (!usuario) return;
+    
+    try {
+        // Simular carga desde servidor (reemplazar con tu API)
+        const statsKey = `wordle-stats-${usuario.sub}`;
+        const savedStats = localStorage.getItem(statsKey);
+        
+        if (savedStats) {
+            usuarioStats = JSON.parse(savedStats);
+        }
+        
+        // Cargar racha actual
+        const currentStreakKey = `wordle-current-streak-${usuario.sub}`;
+        racha = parseInt(localStorage.getItem(currentStreakKey) || '0');
+        usuarioStats.currentStreak = racha;
+        
+    } catch (error) {
+        console.error('Error al cargar estadísticas:', error);
+    }
+}
+
+// Guardar estadísticas del usuario
+async function guardarEstadisticasUsuario() {
+    try {
+        if (modoInvitado) {
+            // Guardar en localStorage para invitados
+            localStorage.setItem('wordle-guest-max-streak', usuarioStats.maxStreak.toString());
+            localStorage.setItem('wordle-guest-games-played', usuarioStats.gamesPlayed.toString());
+            localStorage.setItem('wordle-guest-current-streak', racha.toString());
+        } else if (usuario) {
+            // Guardar para usuarios autenticados
+            const statsKey = `wordle-stats-${usuario.sub}`;
+            localStorage.setItem(statsKey, JSON.stringify(usuarioStats));
+            
+            const currentStreakKey = `wordle-current-streak-${usuario.sub}`;
+            localStorage.setItem(currentStreakKey, racha.toString());
+            
+            // También enviar al scoreboard global
+            await actualizarScoreboardGlobal();
+        }
+    } catch (error) {
+        console.error('Error al guardar estadísticas:', error);
+    }
+}
+
+// Actualizar scoreboard global
+async function actualizarScoreboardGlobal() {
+    if (!usuario || modoInvitado) return;
+    
+    try {
+        // Simular envío a servidor (reemplazar con tu API)
+        const scoreboardKey = 'wordle-global-scoreboard';
+        let scoreboard = JSON.parse(localStorage.getItem(scoreboardKey) || '[]');
+        
+        // Buscar si el usuario ya existe en el scoreboard
+        const userIndex = scoreboard.findIndex(entry => entry.userId === usuario.sub);
+        
+        const userEntry = {
+            userId: usuario.sub,
+            name: usuario.name,
+            email: usuario.email,
+            picture: usuario.picture,
+            maxStreak: usuarioStats.maxStreak,
+            gamesPlayed: usuarioStats.gamesPlayed,
+            lastUpdated: Date.now()
+        };
+        
+        if (userIndex >= 0) {
+            scoreboard[userIndex] = userEntry;
+        } else {
+            scoreboard.push(userEntry);
+        }
+        
+        // Ordenar por racha máxima
+        scoreboard.sort((a, b) => b.maxStreak - a.maxStreak);
+        
+        // Mantener solo los top 100
+        scoreboard = scoreboard.slice(0, 100);
+        
+        localStorage.setItem(scoreboardKey, JSON.stringify(scoreboard));
+        
+    } catch (error) {
+        console.error('Error al actualizar scoreboard global:', error);
+    }
+}
+
+// Cargar scoreboard global
+async function cargarScoreboardGlobal() {
+    try {
+        // Simular carga desde servidor (reemplazar con tu API)
+        const scoreboardKey = 'wordle-global-scoreboard';
+        const scoreboard = JSON.parse(localStorage.getItem(scoreboardKey) || '[]');
+        
+        return scoreboard.sort((a, b) => b.maxStreak - a.maxStreak);
+        
+    } catch (error) {
+        console.error('Error al cargar scoreboard:', error);
+        return [];
+    }
+}
+
+// Mostrar scoreboard
+async function mostrarScoreboard() {
+    const modal = document.getElementById('scoreboard-modal');
+    const loading = document.getElementById('scoreboard-loading');
+    const scoreboardList = document.getElementById('scoreboard-list');
+    
+    modal.classList.remove('hidden');
+    loading.classList.remove('hidden');
+    scoreboardList.classList.add('hidden');
+    
+    try {
+        const scoreboard = await cargarScoreboardGlobal();
+        
+        if (scoreboard.length === 0) {
+            scoreboardList.innerHTML = '<div class="loading">No hay datos de ranking disponibles</div>';
+        } else {
+            scoreboardList.innerHTML = '';
+            
+            scoreboard.forEach((entry, index) => {
+                const item = document.createElement('div');
+                item.className = 'scoreboard-item';
+                
+                // Marcar al usuario actual
+                if (usuario && entry.userId === usuario.sub) {
+                    item.classList.add('current-user');
+                }
+                
+                const rank = index + 1;
+                let rankClass = '';
+                let rankIcon = '';
+                
+                if (rank === 1) {
+                    rankClass = 'gold';
+                    rankIcon = '🥇';
+                } else if (rank === 2) {
+                    rankClass = 'silver';
+                    rankIcon = '🥈';
+                } else if (rank === 3) {
+                    rankClass = 'bronze';
+                    rankIcon = '🥉';
+                }
+                
+                item.innerHTML = `
+                    <div class="scoreboard-rank ${rankClass}">${rankIcon || rank}</div>
+                    <img class="scoreboard-avatar" src="${entry.picture || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNEREQiLz4KPGNpcmNsZSBjeD0iMjAiIGN5PSIxNiIgcj0iNiIgZmlsbD0iIzk5OSIvPgo8cGF0aCBkPSJNMzAgMzJDMzAgMjcuNTggMjUuNTIgMjQgMjAgMjRTMTAgMjcuNTggMTAgMzIiIGZpbGw9IiM5OTkiLz4KPC9zdmc+'}" alt="${entry.name}">
+                    <div class="scoreboard-info">
+                        <div class="scoreboard-name">${entry.name}</div>
+                        <div class="scoreboard-games">${entry.gamesPlayed} partidas</div>
+                    </div>
+                    <div class="scoreboard-streak">${entry.maxStreak} 🔥</div>
+                `;
+                
+                scoreboardList.appendChild(item);
+            });
+        }
+        
+        loading.classList.add('hidden');
+        scoreboardList.classList.remove('hidden');
+        
+    } catch (error) {
+        console.error('Error al mostrar scoreboard:', error);
+        scoreboardList.innerHTML = '<div class="loading">Error al cargar el ranking</div>';
+        loading.classList.add('hidden');
+        scoreboardList.classList.remove('hidden');
+    }
+}
+
+// Cerrar scoreboard
+function cerrarScoreboard() {
+    document.getElementById('scoreboard-modal').classList.add('hidden');
+}
+
+// ========== FUNCIONES MODIFICADAS DEL JUEGO ==========
+
+// Actualizar función de racha para guardar estadísticas
+function actualizarRachaConStats() {
+    const rachaElement = document.getElementById('racha');
+    rachaElement.innerHTML = `Racha: ${racha}<span class="fire-emoji">🔥</span>`;
+    
+    // Actualizar estadísticas
+    usuarioStats.currentStreak = racha;
+    if (racha > usuarioStats.maxStreak) {
+        usuarioStats.maxStreak = racha;
+    }
+    
+    // Actualizar UI
+    document.getElementById('max-streak').textContent = usuarioStats.maxStreak;
+    document.getElementById('games-played').textContent = usuarioStats.gamesPlayed;
+    
+    guardarEstadisticasUsuario();
+}
+
+// Función modificada para manejar el final del juego
+function manejarFinJuego(ganado) {
+    usuarioStats.gamesPlayed++;
+    
+    if (ganado) {
+        racha++;
+    } else {
+        racha = 0;
+    }
+    
+    actualizarRachaConStats();
+}
+
 // Inicializar el juego
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     cargarTema();
+    
+    // Inicializar Auth0 primero
+    await inicializarAuth0();
+    
     inicializarPalabraObjetivo();
     crearTablero();
     crearTecladoVirtual();
     actualizarRacha();
+    
+    // Event listeners para autenticación
+    document.getElementById('login-btn').addEventListener('click', login);
+    document.getElementById('guest-btn').addEventListener('click', iniciarModoInvitado);
+    document.getElementById('logout-btn').addEventListener('click', logout);
+    
+    // Event listeners para scoreboard
+    document.getElementById('scoreboard-btn').addEventListener('click', mostrarScoreboard);
+    document.getElementById('close-scoreboard').addEventListener('click', cerrarScoreboard);
+    
+    // Cerrar modal con click fuera del contenido
+    document.getElementById('scoreboard-modal').addEventListener('click', (e) => {
+        if (e.target.id === 'scoreboard-modal') {
+            cerrarScoreboard();
+        }
+    });
     
     // Agregar event listener para el botón de tema
     const themeToggle = document.getElementById('theme-toggle');
