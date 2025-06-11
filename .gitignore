@@ -1,0 +1,23 @@
+# Archivos de configuración local (para futuro uso)
+config.local.js
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Dependencias
+node_modules/
+
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+
+# Temporal
+*.tmp
+*.temp 

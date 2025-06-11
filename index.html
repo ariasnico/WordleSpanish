@@ -6,7 +6,21 @@
     <title>Wordle en Español</title>
     <link rel="stylesheet" href="styles.css">
     <!-- Auth0 SPA SDK -->
-    <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
+    <script src="https://cdn.auth0.com/js/auth0-spa-js/1.22/auth0-spa-js.production.js"></script>
+    <!-- Configuración de la aplicación -->
+    <script src="config.js"></script>
+    <!-- Script de verificación de Auth0 -->
+    <script>
+        window.addEventListener('load', function() {
+            console.log('🔍 Verificando Auth0 SDK...');
+            if (typeof auth0 !== 'undefined') {
+                console.log('✅ Auth0 SDK cargado correctamente');
+                window.createAuth0Client = auth0.createAuth0Client;
+            } else {
+                console.error('❌ Auth0 SDK no se cargó');
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Panel de autenticación -->
@@ -39,7 +53,7 @@
                     <span class="stat-label">Partidas Jugadas</span>
                 </div>
             </div>
-            <button id="logout-btn" class="auth-btn secondary">Cerrar Sesión</button>
+            <button id="logout-btn" class="auth-btn secondary" onclick="logoutLocal()">Cerrar Sesión</button>
         </div>
     </div>
 

@@ -1,11 +1,5 @@
-// Configuración de Auth0
-const AUTH0_CONFIG = {
-    domain: 'dev-odty0l3abcja7dfs.us.auth0.com', // Ejemplo: dev-xxxxxxxx.us.auth0.com
-    clientId: 'Dt0d1zvYIVUgWfqyswJZGg84Ay98lkFc', // Ejemplo: abcd1234efgh5678...
-    redirectUri: window.location.origin,
-    responseType: 'code',
-    scope: 'openid profile email'
-};
+// Configuración de Auth0 (ahora viene de config.js)
+const AUTH0_CONFIG = CONFIG.AUTH0;
 
 // Variables globales de autenticación
 let auth0Client = null;
@@ -542,43 +536,115 @@ function alternarTema() {
 
 // ========== FUNCIONES DE AUTENTICACIÓN ==========
 
-// Inicializar Auth0
+// Inicializar sistema de autenticación simplificado
 async function inicializarAuth0() {
     try {
-        auth0Client = await createAuth0Client(AUTH0_CONFIG);
-        console.log('Auth0 inicializado correctamente');
+        console.log('🔧 Inicializando sistema de autenticación...');
         
-        // Verificar si ya hay una sesión activa
-        const isAuthenticated = await auth0Client.isAuthenticated();
-        if (isAuthenticated) {
-            usuario = await auth0Client.getUser();
+        // Por ahora, saltar Auth0 y usar sistema local
+        console.log('⚠️ Usando sistema de autenticación local temporal');
+        
+        // Verificar si hay un usuario guardado localmente
+        const usuarioLocal = localStorage.getItem('wordle-usuario-local');
+        if (usuarioLocal) {
+            const datosUsuario = JSON.parse(usuarioLocal);
+            usuario = {
+                sub: datosUsuario.id,
+                name: datosUsuario.name,
+                email: datosUsuario.email,
+                picture: datosUsuario.picture
+            };
+            console.log('👤 Usuario local encontrado:', usuario.name);
             await cargarEstadisticasUsuario();
             mostrarPanelUsuario();
         } else {
-            // Verificar si estamos regresando de una redirección de Auth0
-            const query = window.location.search;
-            if (query.includes('code=') && query.includes('state=')) {
-                try {
-                    await auth0Client.handleRedirectCallback();
-                    usuario = await auth0Client.getUser();
-                    await cargarEstadisticasUsuario();
-                    mostrarPanelUsuario();
-                    // Limpiar la URL
-                    window.history.replaceState({}, document.title, window.location.pathname);
-                } catch (error) {
-                    console.error('Error al manejar la redirección:', error);
-                    mostrarPanelLogin();
-                }
-            } else {
-                mostrarPanelLogin();
-            }
+            console.log('📋 Mostrando panel de login local');
+            mostrarPanelLoginLocal();
         }
+        
     } catch (error) {
-        console.error('Error al inicializar Auth0:', error);
-        mostrarMensaje('Error de autenticación. Jugando como invitado.');
+        console.error('❌ Error al inicializar autenticación:', error);
         iniciarModoInvitado();
     }
 }
+
+// Panel de login local simplificado
+function mostrarPanelLoginLocal() {
+    document.getElementById('auth-panel').classList.remove('hidden');
+    document.getElementById('login-container').innerHTML = `
+        <h2>¡Bienvenido a Wordle Español!</h2>
+        <p>Elige cómo quieres jugar:</p>
+        <div style="margin: 20px 0;">
+            <input type="text" id="nombre-usuario" placeholder="Tu nombre (opcional)" 
+                   style="width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px;">
+        </div>
+        <button id="login-local-btn" class="auth-btn" onclick="loginLocal()">
+            🎮 Jugar con Perfil
+        </button>
+        <button id="guest-btn" class="auth-btn secondary" onclick="iniciarModoInvitado()">
+            👤 Jugar como Invitado
+        </button>
+        <p style="font-size: 0.9rem; color: #666; margin-top: 15px;">
+            Con perfil: tu progreso se guarda y apareces en el ranking<br>
+            Como invitado: solo se guarda localmente
+        </p>
+    `;
+    document.getElementById('user-container').classList.add('hidden');
+    document.getElementById('game-container').style.display = 'none';
+}
+
+// Login local
+function loginLocal() {
+    const nombre = document.getElementById('nombre-usuario').value.trim() || 'Jugador';
+    const usuarioId = 'local_' + Date.now();
+    
+    const datosUsuario = {
+        id: usuarioId,
+        name: nombre,
+        email: '',
+        picture: generarAvatar(nombre)
+    };
+    
+    // Guardar usuario local
+    localStorage.setItem('wordle-usuario-local', JSON.stringify(datosUsuario));
+    
+    usuario = {
+        sub: datosUsuario.id,
+        name: datosUsuario.name,
+        email: datosUsuario.email,
+        picture: datosUsuario.picture
+    };
+    
+    console.log('✅ Login local exitoso:', usuario.name);
+    cargarEstadisticasUsuario();
+    mostrarPanelUsuario();
+}
+
+// Generar avatar simple
+function generarAvatar(nombre) {
+    const inicial = nombre.charAt(0).toUpperCase();
+    const colores = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
+    const color = colores[inicial.charCodeAt(0) % colores.length];
+    
+    return `data:image/svg+xml;base64,${btoa(`
+        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="20" cy="20" r="20" fill="${color}"/>
+            <text x="20" y="25" text-anchor="middle" fill="white" font-family="Arial" font-size="16" font-weight="bold">${inicial}</text>
+        </svg>
+    `)}`;
+}
+
+// Logout local
+function logoutLocal() {
+    localStorage.removeItem('wordle-usuario-local');
+    usuario = null;
+    mostrarPanelLoginLocal();
+}
+
+// Hacer funciones globales para que funcionen desde HTML
+window.loginLocal = loginLocal;
+window.logoutLocal = logoutLocal;
+window.iniciarModoInvitado = iniciarModoInvitado;
 
 // Función de login
 async function login() {
@@ -858,7 +924,18 @@ function manejarFinJuego(ganado) {
 document.addEventListener('DOMContentLoaded', async () => {
     cargarTema();
     
-    // Inicializar Auth0 primero
+    // Esperar a que se cargue completamente la página
+    await new Promise(resolve => {
+        if (document.readyState === 'complete') {
+            resolve();
+        } else {
+            window.addEventListener('load', resolve);
+        }
+    });
+    
+    console.log('🚀 Página cargada completamente, inicializando Auth0...');
+    
+    // Inicializar Auth0 después de que todo esté cargado
     await inicializarAuth0();
     
     inicializarPalabraObjetivo();
@@ -866,10 +943,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     crearTecladoVirtual();
     actualizarRacha();
     
-    // Event listeners para autenticación
-    document.getElementById('login-btn').addEventListener('click', login);
-    document.getElementById('guest-btn').addEventListener('click', iniciarModoInvitado);
-    document.getElementById('logout-btn').addEventListener('click', logout);
+    // Event listeners para autenticación (se configuran dinámicamente)
+    // Los botones se crean dinámicamente en mostrarPanelLoginLocal()
+    
+    // Event listener para logout si existe el botón
+    const logoutBtn = document.getElementById('logout-btn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', logoutLocal);
+    }
     
     // Event listeners para scoreboard
     document.getElementById('scoreboard-btn').addEventListener('click', mostrarScoreboard);
