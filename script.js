@@ -152,8 +152,12 @@ function decodificarPalabra(palabraCodificada) {
     }
 }
 
-// Sistema anti-trampa: deshabilitar DevTools en producción (mejorado para móviles)
+// Sistema anti-trampa: TEMPORALMENTE DESHABILITADO PARA DEBUG
 function antiTrampa() {
+    // TEMPORALMENTE DESHABILITADO PARA DEBUG DEL SCOREBOARD
+    console.log('🔧 Anti-trampa deshabilitado temporalmente para debug');
+    return; // No hacer nada - debug mode
+    
     // Solo activar en producción
     if (!CONFIG.isProduction) {
         return; // No hacer nada en desarrollo
