@@ -28,8 +28,6 @@ class BasesDatosGlobal {
     // Obtener scoreboard global desde la API segura
     async obtenerScoreboard() {
         try {
-            console.log('🌍 Cargando scoreboard desde API segura...');
-            
             // Llamar a nuestra API serverless (sin exponer credenciales)
             const response = await fetch(this.apiUrl, {
                 method: 'GET',
@@ -45,15 +43,12 @@ class BasesDatosGlobal {
                 localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
                 localStorage.setItem(this.lastSyncKey, Date.now().toString());
                 
-                console.log(`✅ Scoreboard cargado: ${scoreboard.length} usuarios`);
                 return scoreboard;
             } else {
                 throw new Error(`API Error: ${response.status}`);
             }
             
         } catch (error) {
-            console.log('⚠️ Usando cache local como respaldo:', error.message);
-            
             // Usar cache local como respaldo
             const cachedScoreboard = localStorage.getItem(this.cacheKey);
             if (cachedScoreboard) {
@@ -67,8 +62,6 @@ class BasesDatosGlobal {
     // Guardar scoreboard global usando API segura
     async guardarScoreboard(scoreboard) {
         try {
-            console.log('🌍 Guardando scoreboard usando API segura...');
-            
             const response = await fetch(this.apiUrl, {
                 method: 'PUT',
                 headers: {
@@ -82,18 +75,14 @@ class BasesDatosGlobal {
                 localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
                 localStorage.setItem(this.lastSyncKey, Date.now().toString());
                 
-                console.log('✅ Scoreboard guardado exitosamente usando API segura');
                 return true;
             } else {
                 throw new Error(`API Error: ${response.status}`);
             }
             
         } catch (error) {
-            console.error('❌ Error al guardar usando API segura:', error);
-            
             // Al menos guardar en cache local
             localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
-            console.log('💾 Guardado en cache local como respaldo');
             return false;
         }
     }
@@ -248,41 +237,4 @@ const baseDatosGlobal = new BasesDatosGlobal();
 // Exportar para uso global
 window.baseDatosGlobal = baseDatosGlobal;
 
-// DEBUG: Función global para diagnosticar problemas del scoreboard
-window.debugWordle = async function() {
-    console.log('🔍 === DEBUG WORDLE SCOREBOARD ===');
-    
-    // Info básica
-    console.log('🌍 URL actual:', window.location.href);
-    console.log('📱 User Agent:', navigator.userAgent);
-    
-    // API Test
-    try {
-        console.log('🌐 Probando API /api/scoreboard GET...');
-        const getResponse = await fetch('/api/scoreboard');
-        console.log('📡 GET Status:', getResponse.status);
-        
-        if (getResponse.ok) {
-            const data = await getResponse.json();
-            console.log('📋 Datos del servidor:', data);
-            console.log('👥 Total usuarios en el servidor:', data.length);
-            
-            // Mostrar cada usuario
-            data.forEach((user, index) => {
-                console.log(`${index + 1}. ${user.name} (${user.userId}) - Racha: ${user.maxStreak}`);
-            });
-        } else {
-            console.error('❌ Error GET:', await getResponse.text());
-        }
-        
-    } catch (error) {
-        console.error('❌ Error en API test:', error);
-    }
-    
-    // Cache local
-    const cache = localStorage.getItem('wordle-global-scoreboard-cache');
-    console.log('💾 Cache local:', cache ? JSON.parse(cache) : 'No cache');
-    
-    console.log('🔍 === FIN DEBUG ===');
-    console.log('💡 Ejecuta debugWordle() en la consola para diagnosticar');
-}; 
+ 

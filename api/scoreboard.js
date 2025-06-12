@@ -1,16 +1,15 @@
 // Función serverless para manejar el scoreboard de forma segura
 export default async function handler(req, res) {
-    console.log('🔍 API Call:', req.method, req.url);
+    // BASE DE DATOS PERMANENTE: Usar Firebase Realtime Database
+    const FIREBASE_CONFIG = {
+        apiKey: "AIzaSyB5K8l2Q9Y3XmZ4P7vF6wA8rN1sT9uE0iO",
+        authDomain: "wordle-spanish-global.firebaseapp.com",
+        databaseURL: "https://wordle-spanish-global-default-rtdb.firebaseio.com/",
+        projectId: "wordle-spanish-global"
+    };
     
-    // SOLUCIÓN TEMPORAL: Usar un servicio más simple hasta arreglar JSONBin
-    console.log('🔄 Usando sistema de scoreboard simplificado temporalmente');
-    
-    // Simular una base de datos simple en memoria para esta sesión
-    if (!global.scoreboardData) {
-        global.scoreboardData = [];
-    }
-    
-    console.log('🔧 Scoreboard actual tiene', global.scoreboardData.length, 'usuarios');
+    // Usar Firebase REST API (sin SDK para serverless)
+    const DB_URL = `${FIREBASE_CONFIG.databaseURL}scoreboard.json`;
 
     // Configurar CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,28 +23,42 @@ export default async function handler(req, res) {
 
     try {
         if (req.method === 'GET') {
-            console.log('📥 GET Request');
+            // Obtener de Firebase
+            const response = await fetch(DB_URL);
             
-            // Devolver scoreboard actual
-            console.log('📊 Returning scoreboard with', global.scoreboardData.length, 'users');
-            res.status(200).json(global.scoreboardData);
+            if (!response.ok) {
+                return res.status(200).json([]);
+            }
+
+            const data = await response.json();
+            const scoreboard = data || [];
+            
+            res.status(200).json(Array.isArray(scoreboard) ? scoreboard : []);
 
         } else if (req.method === 'PUT') {
-            console.log('📤 PUT Request');
-            
             // Actualizar scoreboard
             const { scoreboard } = req.body;
-            console.log('📊 Received scoreboard:', scoreboard);
 
             // Validar datos
             if (!Array.isArray(scoreboard)) {
-                console.error('❌ Invalid data: not array');
                 return res.status(400).json({ error: 'Invalid scoreboard data' });
             }
 
-            // Actualizar datos globales
-            global.scoreboardData = scoreboard.slice(0, 500);
-            console.log('✅ Scoreboard actualizado con', global.scoreboardData.length, 'usuarios');
+            // Limitar tamaño
+            const limitedScoreboard = scoreboard.slice(0, 500);
+            
+            // Guardar en Firebase
+            const response = await fetch(DB_URL, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(limitedScoreboard)
+            });
+            
+            if (!response.ok) {
+                return res.status(500).json({ error: 'Database error' });
+            }
 
             res.status(200).json({ success: true });
 
@@ -54,15 +67,8 @@ export default async function handler(req, res) {
         }
 
     } catch (error) {
-        console.error('❌ Scoreboard API Error:', error);
-        console.error('❌ Error stack:', error.stack);
-        console.error('❌ Error message:', error.message);
-        
-        // Enviar más detalles del error para debug
-        res.status(500).json({ 
-            error: 'Internal server error',
-            debug: error.message,
-            timestamp: new Date().toISOString()
-        });
+        // Log mínimo para producción
+        console.error('API Error:', error.message);
+        res.status(500).json({ error: 'Internal server error' });
     }
 } 
