@@ -152,12 +152,17 @@ function decodificarPalabra(palabraCodificada) {
     }
 }
 
-// Sistema anti-trampa: deshabilitar DevTools en producción
+// Sistema anti-trampa: deshabilitar DevTools en producción (mejorado para móviles)
 function antiTrampa() {
     // Solo activar en producción
     if (!CONFIG.isProduction) {
         return; // No hacer nada en desarrollo
     }
+
+    // Detectar si estamos en móvil
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || 
+                     window.innerWidth <= 768 || 
+                     'ontouchstart' in window;
 
     // Deshabilitar console completamente en producción
     const noop = () => {};
@@ -181,79 +186,107 @@ function antiTrampa() {
         // Silenciar errores en producción
     }
     
-    // Detectar DevTools abiertos - versión optimizada
-    let devtools = { open: false };
-    const DEVTOOLS_THRESHOLD = 160;
-    const WARNING_HTML = `
-        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
-            <h1 style="font-size:3em;margin:0;">🚫 ANTI-TRAMPA 🚫</h1>
-            <p style="font-size:1.5em;">Cierra las herramientas de desarrollador</p>
-            <p style="font-size:1em;opacity:0.8;">El juego se reiniciará automáticamente</p>
-        </div>
-    `;
-    
-    const detectDevTools = () => {
-        const heightDiff = window.outerHeight - window.innerHeight;
-        const widthDiff = window.outerWidth - window.innerWidth;
+    // Solo detectar DevTools en DESKTOP - evitar falsos positivos en móviles
+    if (!isMobile) {
+        let devtools = { open: false };
+        const DEVTOOLS_THRESHOLD = 200; // Aumentado para evitar falsos positivos
+        const WARNING_HTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
+                <h1 style="font-size:3em;margin:0;">🚫 ANTI-TRAMPA 🚫</h1>
+                <p style="font-size:1.5em;">Cierra las herramientas de desarrollador</p>
+                <p style="font-size:1em;opacity:0.8;">El juego se reiniciará automáticamente</p>
+            </div>
+        `;
         
-        if (heightDiff > DEVTOOLS_THRESHOLD || widthDiff > DEVTOOLS_THRESHOLD) {
-            if (!devtools.open) {
-                devtools.open = true;
-                document.body.innerHTML = WARNING_HTML;
+        // Variables para detección más inteligente
+        let initialOuterHeight = window.outerHeight;
+        let initialOuterWidth = window.outerWidth;
+        let stableCount = 0;
+        
+        const detectDevTools = () => {
+            const heightDiff = window.outerHeight - window.innerHeight;
+            const widthDiff = window.outerWidth - window.innerWidth;
+            
+            // Ignorar cambios menores de tamaño (zoom, barra de direcciones, etc.)
+            const heightChanged = Math.abs(window.outerHeight - initialOuterHeight) > 50;
+            const widthChanged = Math.abs(window.outerWidth - initialOuterWidth) > 50;
+            
+            // Solo detectar si es un cambio significativo Y consistente
+            if ((heightDiff > DEVTOOLS_THRESHOLD || widthDiff > DEVTOOLS_THRESHOLD) && 
+                !heightChanged && !widthChanged) {
+                stableCount++;
+                
+                // Requiere detección estable por 3 intervalos consecutivos
+                if (stableCount >= 3 && !devtools.open) {
+                    devtools.open = true;
+                    document.body.innerHTML = WARNING_HTML;
+                }
+            } else {
+                stableCount = 0;
+                if (devtools.open && heightDiff < 100 && widthDiff < 100) {
+                    devtools.open = false;
+                    window.location.reload();
+                }
             }
-        } else if (devtools.open) {
-            devtools.open = false;
-            window.location.reload();
-        }
-    };
-    
-    // Verificar cada 100ms - optimizado
-    let detectionInterval = setInterval(detectDevTools, 100);
-    
-    // Limpiar interval si la página se descarga
-    window.addEventListener('beforeunload', () => {
-        if (detectionInterval) {
-            clearInterval(detectionInterval);
-        }
-    });
-    
-    // Deshabilitar teclas peligrosas
-    const BLOCKED_KEYS = ['F12'];
-    const BLOCKED_COMBOS = [
-        { ctrl: true, shift: true, key: 'I' },
-        { ctrl: true, shift: true, key: 'J' },
-        { ctrl: true, key: 'U' }
-    ];
-    
-    const keyHandler = (e) => {
-        // Verificar teclas individuales
-        if (BLOCKED_KEYS.includes(e.key)) {
-            e.preventDefault();
-            document.body.innerHTML = `
-                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
-                    <h1 style="font-size:3em;margin:0;">🚫 NO HAGAS TRAMPA 🚫</h1>
-                    <p style="font-size:1.5em;">Teclas de desarrollador deshabilitadas</p>
-                </div>
-            `;
-            return;
-        }
+        };
         
-        // Verificar combinaciones
-        for (const combo of BLOCKED_COMBOS) {
-            if ((!combo.ctrl || e.ctrlKey) && 
-                (!combo.shift || e.shiftKey) && 
-                (!combo.alt || e.altKey) && 
-                e.key === combo.key) {
+        // Verificar cada 200ms (menos agresivo)
+        let detectionInterval = setInterval(detectDevTools, 200);
+        
+        // Limpiar interval si la página se descarga
+        window.addEventListener('beforeunload', () => {
+            if (detectionInterval) {
+                clearInterval(detectionInterval);
+            }
+        });
+    }
+    
+    // Deshabilitar teclas peligrosas (solo en desktop)
+    if (!isMobile) {
+        const BLOCKED_KEYS = ['F12'];
+        const BLOCKED_COMBOS = [
+            { ctrl: true, shift: true, key: 'I' },
+            { ctrl: true, shift: true, key: 'J' },
+            { ctrl: true, key: 'U' }
+        ];
+        
+        const keyHandler = (e) => {
+            // Verificar teclas individuales
+            if (BLOCKED_KEYS.includes(e.key)) {
                 e.preventDefault();
-                document.body.innerHTML = WARNING_HTML;
+                document.body.innerHTML = `
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
+                        <h1 style="font-size:3em;margin:0;">🚫 NO HAGAS TRAMPA 🚫</h1>
+                        <p style="font-size:1.5em;">Teclas de desarrollador deshabilitadas</p>
+                    </div>
+                `;
                 return;
             }
-        }
-    };
+            
+            // Verificar combinaciones
+            for (const combo of BLOCKED_COMBOS) {
+                if ((!combo.ctrl || e.ctrlKey) && 
+                    (!combo.shift || e.shiftKey) && 
+                    (!combo.alt || e.altKey) && 
+                    e.key === combo.key) {
+                    e.preventDefault();
+                    document.body.innerHTML = `
+                        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
+                            <h1 style="font-size:3em;margin:0;">🚫 ANTI-TRAMPA 🚫</h1>
+                            <p style="font-size:1.5em;">Cierra las herramientas de desarrollador</p>
+                            <p style="font-size:1em;opacity:0.8;">El juego se reiniciará automáticamente</p>
+                        </div>
+                    `;
+                    return;
+                }
+            }
+        };
+        
+        document.addEventListener('keydown', keyHandler, { passive: false });
+    }
     
-    // Event listeners optimizados
+    // Click derecho deshabilitado en todos los dispositivos
     document.addEventListener('contextmenu', e => e.preventDefault(), { passive: false });
-    document.addEventListener('keydown', keyHandler, { passive: false });
 }
 
 // Inicializar palabra objetivo
