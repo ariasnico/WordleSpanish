@@ -16,7 +16,7 @@ const CONFIG = {
     // URLs de la aplicación
     URLS: {
         development: 'http://localhost:8080',
-        production: 'https://ariasnico.github.io/WordleSpanish'
+        production: 'https://wordle-spanish-xgdn-six.vercel.app'
     },
     
     // Configuración del juego
