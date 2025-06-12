@@ -14,36 +14,32 @@ const FIREBASE_CONFIG = {
     // apiKey: process.env.VITE_FIREBASE_API_KEY || "demo-key"
 };
 
-// Sistema de base de datos global REAL usando JSONBin.io
+// Sistema de base de datos global SEGURO usando proxy serverless
 class BasesDatosGlobal {
     constructor() {
-        // ✅ Usando JSONBin.io como base de datos gratuita real
-        this.apiUrl = 'https://api.jsonbin.io/v3/b';
-        this.binId = '67653a2ce41b4d34e45ba45e'; // Bin específico para Wordle Español
-        this.apiKey = '$2a$10$RBFwojY4p9D..VhMXEO.LO1rGjWjWbmjWp7jhX1F4l5rJnWmSuQJC'; // API Key de solo lectura/escritura
+        // ✅ SEGURO: API key oculta en el backend
+        this.apiUrl = `${window.location.origin}/api/scoreboard`;
         
         // Cache local como respaldo
         this.cacheKey = 'wordle-global-scoreboard-cache';
         this.lastSyncKey = 'wordle-last-sync';
     }
 
-    // Obtener scoreboard global desde la base de datos real
+    // Obtener scoreboard global desde la API segura
     async obtenerScoreboard() {
         try {
-            console.log('🌍 Cargando scoreboard desde base de datos real...');
+            console.log('🌍 Cargando scoreboard desde API segura...');
             
-            // Intentar cargar desde la API real
-            const response = await fetch(`${this.apiUrl}/${this.binId}/latest`, {
+            // Llamar a nuestra API serverless (sin exponer credenciales)
+            const response = await fetch(this.apiUrl, {
                 method: 'GET',
                 headers: {
-                    'X-Master-Key': this.apiKey,
-                    'X-Bin-Meta': 'false'
+                    'Content-Type': 'application/json'
                 }
             });
             
             if (response.ok) {
-                const data = await response.json();
-                const scoreboard = data.scoreboard || [];
+                const scoreboard = await response.json();
                 
                 // Guardar en cache local
                 localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
@@ -68,25 +64,17 @@ class BasesDatosGlobal {
         }
     }
 
-    // Guardar scoreboard global en la base de datos real
+    // Guardar scoreboard global usando API segura
     async guardarScoreboard(scoreboard) {
         try {
-            console.log('🌍 Guardando scoreboard en base de datos real...');
+            console.log('🌍 Guardando scoreboard usando API segura...');
             
-            const payload = {
-                scoreboard: scoreboard,
-                lastUpdated: Date.now(),
-                version: '1.0',
-                totalUsers: scoreboard.length
-            };
-            
-            const response = await fetch(`${this.apiUrl}/${this.binId}`, {
+            const response = await fetch(this.apiUrl, {
                 method: 'PUT',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'X-Master-Key': this.apiKey
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ scoreboard })
             });
             
             if (response.ok) {
@@ -94,14 +82,14 @@ class BasesDatosGlobal {
                 localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
                 localStorage.setItem(this.lastSyncKey, Date.now().toString());
                 
-                console.log('✅ Scoreboard guardado exitosamente en base de datos real');
+                console.log('✅ Scoreboard guardado exitosamente usando API segura');
                 return true;
             } else {
                 throw new Error(`API Error: ${response.status}`);
             }
             
         } catch (error) {
-            console.error('❌ Error al guardar en base de datos real:', error);
+            console.error('❌ Error al guardar usando API segura:', error);
             
             // Al menos guardar en cache local
             localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
