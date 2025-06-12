@@ -4,10 +4,48 @@ export default async function handler(req, res) {
     
     // Configuración segura en variables de entorno
     const API_KEY = process.env.JSONBIN_API_KEY || '$2a$10$RBFwojY4p9D..VhMXEO.LO1rGjWjWbmjWp7jhX1F4l5rJnWmSuQJC';
-    const BIN_ID = process.env.JSONBIN_BIN_ID || '67653a2ce41b4d34e45ba45e';
+    const BIN_ID = process.env.JSONBIN_BIN_ID; // Sin fallback, forzar creación
     const API_URL = 'https://api.jsonbin.io/v3/b';
     
-    console.log('🔧 Config:', { BIN_ID, API_URL });
+    // Si no hay BIN_ID, crear uno nuevo automáticamente
+    if (!BIN_ID) {
+        console.log('🆕 No hay BIN_ID, creando nuevo bin...');
+        try {
+            const createResponse = await fetch(`${API_URL}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Master-Key': API_KEY,
+                    'X-Bin-Name': 'Wordle-Spanish-Scoreboard'
+                },
+                body: JSON.stringify({
+                    scoreboard: [],
+                    created: Date.now(),
+                    version: '1.0'
+                })
+            });
+            
+            if (createResponse.ok) {
+                const createData = await createResponse.json();
+                const newBinId = createData.metadata.id;
+                console.log('✅ Bin creado exitosamente:', newBinId);
+                
+                // Usar el nuevo BIN_ID para esta sesión
+                process.env.JSONBIN_BIN_ID = newBinId;
+                console.log('🔧 BIN_ID establecido para esta sesión');
+            } else {
+                throw new Error('No se pudo crear el bin');
+            }
+        } catch (createError) {
+            console.error('❌ Error creando bin:', createError);
+            // Usar un bin hardcodeado como último recurso
+            process.env.JSONBIN_BIN_ID = '676554b1e41b4d34e45ba569';
+        }
+    }
+    
+    // Usar el BIN_ID actual (puede haber sido creado arriba)
+    const finalBinId = process.env.JSONBIN_BIN_ID;
+    console.log('🔧 Config:', { BIN_ID: finalBinId, API_URL });
 
     // Configurar CORS
     res.setHeader('Access-Control-Allow-Origin', '*');
@@ -24,7 +62,7 @@ export default async function handler(req, res) {
             console.log('📥 GET Request');
             
             // Obtener scoreboard
-            const url = `${API_URL}/${BIN_ID}/latest`;
+            const url = `${API_URL}/${finalBinId}/latest`;
             console.log('🌐 Fetching:', url);
             
             const response = await fetch(url, {
@@ -76,7 +114,7 @@ export default async function handler(req, res) {
             
             console.log('📦 Payload:', payload);
 
-            const url = `${API_URL}/${BIN_ID}`;
+            const url = `${API_URL}/${finalBinId}`;
             console.log('🌐 PUT to:', url);
 
             const response = await fetch(url, {
