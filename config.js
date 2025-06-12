@@ -2,15 +2,15 @@
 const CONFIG = {
     // Configuración de Auth0
     AUTH0: {
-        domain: window.location.hostname === 'localhost' 
-            ? 'dev-odty0l3abcja7dfs.us.auth0.com'  // Desarrollo
-            : 'dev-odty0l3abcja7dfs.us.auth0.com', // Producción (mismo por ahora)
-        clientId: window.location.hostname === 'localhost'
-            ? 'Dt0d1zvYIVUgWfqyswJZGg84Ay98lkFc'  // Desarrollo  
-            : 'Dt0d1zvYIVUgWfqyswJZGg84Ay98lkFc', // Producción (mismo por ahora)
-        redirectUri: window.location.origin,
-        responseType: 'code',
-        scope: 'openid profile email'
+        domain: 'dev-odty0l3abcja7dfs.us.auth0.com',
+        clientId: 'Dt0d1zvYIVUgWfqyswJZGg84Ay98lkFc',
+        authorizationParams: {
+            redirect_uri: window.location.origin,
+            audience: undefined,
+            scope: 'openid profile email'
+        },
+        cacheLocation: 'localstorage',
+        useRefreshTokens: window.location.protocol === 'https:' // Solo con HTTPS
     },
     
     // URLs de la aplicación

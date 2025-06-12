@@ -1,23 +1,142 @@
-# Archivos de configuración local (para futuro uso)
-config.local.js
+# ========== ARCHIVOS DE ENTORNO Y CONFIGURACIÓN ==========
+# Variables de entorno (futuro uso con backend)
 .env
 .env.local
+.env.production
+.env.development
+config.local.js
+secrets.js
 
-# Logs
-*.log
-npm-debug.log*
-
-# Dependencias
+# ========== DEPENDENCIAS Y BUILD ==========
+# Node.js
 node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
 
-# Archivos del sistema
-.DS_Store
-Thumbs.db
+# Vercel
+.vercel
+.vercel/*
 
-# Editor
-.vscode/
-.idea/
+# ========== ARCHIVOS DE DESARROLLO ==========
+# Certificados SSL de desarrollo local
+*.pem
+*.crt
+*.key
+server.crt
+server.key
 
-# Temporal
+# Archivos temporales de desarrollo
 *.tmp
-*.temp 
+*.temp
+.cache/
+dist/
+build/
+
+# Logs de desarrollo
+*.log
+logs/
+server.log
+
+# ========== ARCHIVOS DEL SISTEMA ==========
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+
+# Linux
+*~
+.nfs*
+
+# ========== EDITORES E IDEs ==========
+# Visual Studio Code
+.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Emacs
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+
+# ========== ARCHIVOS ESPECÍFICOS DEL PROYECTO ==========
+# Backups de desarrollo
+*.backup
+*.bak
+script.js.backup
+index.html.backup
+
+# Archivos de prueba local
+test.html
+test.js
+debug.html
+local-test.*
+
+# Screenshots/capturas
+screenshots/
+capturas/
+*.png
+*.jpg
+*.jpeg
+*.gif
+
+# ========== ARCHIVOS SENSIBLES (NUNCA SUBIR) ==========
+# API Keys reales (si las hubiera)
+firebase-config.real.js
+auth0-config.real.js
+api-keys.js
+
+# Datos de usuarios de prueba
+user-data.json
+test-users.json
+local-storage-backup.json
+
+# ========== ARCHIVOS DE ANÁLISIS ==========
+# Coverage reports
+coverage/
+*.lcov
+
+# Profiling
+*.prof
+*.cpuprofile
+
+# ========== OTROS ==========
+# Archivos comprimidos
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Documentación temporal
+TODO.md
+NOTES.md
+DRAFT.md 

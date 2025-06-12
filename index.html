@@ -4,21 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wordle en Español</title>
+    
+    <!-- 🛡️ Content Security Policy para máxima seguridad -->
+    <meta http-equiv="Content-Security-Policy" content="
+        default-src 'self';
+        script-src 'self' 'unsafe-inline' https://unpkg.com https://cdn.jsdelivr.net https://cdn.auth0.com;
+        style-src 'self' 'unsafe-inline';
+        img-src 'self' data: https://lh3.googleusercontent.com https://s.gravatar.com;
+        connect-src 'self' https://dev-odty0l3abcja7dfs.us.auth0.com https://ipapi.co https://api.jsonbin.io https://en.wiktionary.org;
+        font-src 'self';
+        frame-src 'none';
+        object-src 'none';
+        base-uri 'self';
+        form-action 'self';
+        upgrade-insecure-requests;
+    ">
     <link rel="stylesheet" href="styles.css">
-    <!-- Auth0 SPA SDK -->
-    <script src="https://cdn.auth0.com/js/auth0-spa-js/1.22/auth0-spa-js.production.js"></script>
+    
+    <!-- Auth0 SPA SDK - Carga optimizada con fallbacks -->
+    <script src="https://unpkg.com/@auth0/auth0-spa-js@2.1.3/dist/auth0-spa-js.production.js" 
+            async defer onerror="loadAuth0Fallback()"></script>
+    
     <!-- Configuración de la aplicación -->
-    <script src="config.js"></script>
-    <!-- Script de verificación de Auth0 -->
+    <script src="config.js" defer></script>
+    
+    <!-- Base de datos global -->
+    <script src="firebase-config.js" defer></script>
+    
+    <!-- Script de fallback optimizado para Auth0 -->
     <script>
-        window.addEventListener('load', function() {
-            console.log('🔍 Verificando Auth0 SDK...');
-            if (typeof auth0 !== 'undefined') {
-                console.log('✅ Auth0 SDK cargado correctamente');
-                window.createAuth0Client = auth0.createAuth0Client;
-            } else {
-                console.error('❌ Auth0 SDK no se cargó');
+        let auth0LoadAttempts = 0;
+        const MAX_AUTH0_ATTEMPTS = 3;
+        const FALLBACK_CDNS = [
+            'https://cdn.jsdelivr.net/npm/@auth0/auth0-spa-js@2.1.3/dist/auth0-spa-js.production.min.js',
+            'https://cdn.auth0.com/js/auth0-spa-js/2.1.3/auth0-spa-js.production.js',
+            './auth0-spa-js.js'  // Fallback local
+        ];
+        
+        function loadAuth0Fallback() {
+            auth0LoadAttempts++;
+            
+            if (auth0LoadAttempts >= MAX_AUTH0_ATTEMPTS) {
+                console.warn('🚫 Todos los intentos de cargar Auth0 fallaron');
+                window.auth0LoadFailed = true;
+                return;
             }
+            
+            const script = document.createElement('script');
+            script.src = FALLBACK_CDNS[auth0LoadAttempts - 1];
+            script.async = true;
+            script.defer = true;
+            script.onerror = loadAuth0Fallback;
+            script.onload = () => {
+                console.log('✅ Auth0 SDK cargado desde fallback');
+                window.auth0LoadFailed = false;
+            };
+            document.head.appendChild(script);
+        }
+        
+        // Verificación optimizada de Auth0
+        function checkAuth0Ready() {
+            if (typeof auth0 !== 'undefined') {
+                window.createAuth0Client = auth0.createAuth0Client;
+                window.auth0LoadFailed = false;
+                return true;
+            }
+            return false;
+        }
+        
+        // Verificar cuando DOM esté listo
+        document.addEventListener('DOMContentLoaded', () => {
+            // Esperar un poco para que se cargue Auth0
+            setTimeout(() => {
+                if (!checkAuth0Ready() && !window.auth0LoadFailed) {
+                    loadAuth0Fallback();
+                }
+            }, 1000);
         });
     </script>
 </head>
@@ -53,7 +114,7 @@
                     <span class="stat-label">Partidas Jugadas</span>
                 </div>
             </div>
-            <button id="logout-btn" class="auth-btn secondary" onclick="logoutLocal()">Cerrar Sesión</button>
+            <button id="logout-btn" class="auth-btn secondary">Cerrar Sesión</button>
         </div>
     </div>
 

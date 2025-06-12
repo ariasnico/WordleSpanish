@@ -1,17 +1,24 @@
 // Configuración de Auth0 (ahora viene de config.js)
 const AUTH0_CONFIG = CONFIG.AUTH0;
 
-// Variables globales de autenticación
-let auth0Client = null;
-let usuario = null;
-let usuarioStats = {
-    maxStreak: 0,
-    gamesPlayed: 0,
-    currentStreak: 0
-};
-let modoInvitado = false;
+// ========== CONSTANTES DEL JUEGO ==========
+const PALABRA_LENGTH = 5;
+const MAX_INTENTOS = 6;
+const TECLADO_LAYOUT = [
+    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
+    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
+    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '←']
+];
 
-const palabras = [
+// Mapeo de palabras sin tilde a su versión correcta con tilde
+const PALABRAS_CON_TILDE = {
+    'arbol': 'árbol',
+    'angel': 'ángel',
+    'lapiz': 'lápiz',
+};
+
+// Lista de palabras del juego
+const PALABRAS = [
     'GATOS', 'PERRO', 'LIBRO', 'VERDE', 'PLATO',
     'CARRO', 'PLAYA', 'FUEGO', 'CIELO', 'MUNDO',
     'PAPEL', 'RELOJ', 'CAMPO', 'DULCE', 'AUDIO',
@@ -34,8 +41,19 @@ const palabras = [
     'CAMAS', 'PECES', 'PILAR', 'MIRAR'
 ];
 
-// Variables globales del juego
-let palabraObjetivo;
+// ========== VARIABLES GLOBALES ==========
+// Variables de autenticación
+let auth0Client = null;
+let usuario = null;
+let usuarioStats = {
+    maxStreak: 0,
+    gamesPlayed: 0,
+    currentStreak: 0
+};
+let modoInvitado = false;
+
+// Variables del juego
+let palabraObjetivo; // Esta variable se protegerá en producción
 let intentoActual = 0;
 let letraActual = 0;
 let juegoTerminado = false;
@@ -45,12 +63,7 @@ let tecladoVirtual = {};
 let racha = 0;
 let temaActual = 'light';
 
-// Configuración del teclado
-const TECLADO_LAYOUT = [
-    ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I', 'O', 'P'],
-    ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K', 'L'],
-    ['ENTER', 'Z', 'X', 'C', 'V', 'B', 'N', 'M', '←']
-];
+// ========== FUNCIONES AUXILIARES ==========
 
 // Función para verificar si una palabra contiene tildes
 function contieneTildes(palabra) {
@@ -58,90 +71,60 @@ function contieneTildes(palabra) {
     return regexTildes.test(palabra.normalize('NFD'));
 }
 
-// Mapeo de palabras sin tilde a su versión correcta con tilde
-const palabrasConTilde = {
-    'arbol': 'árbol',
-    'angel': 'ángel',
-    'lapiz': 'lápiz',
-};
-
 // Verificar si una palabra existe en el diccionario y es en español usando Wiktionary API
 async function verificarPalabraEnDiccionario(palabra) {
     try {
         const palabraMinuscula = palabra.toLowerCase();
-        let paginaFinal = palabraMinuscula;
-
-        // Primero intentar con la palabra exacta como está
-        let encodedPaginaFinal = encodeURIComponent(paginaFinal);
-        let parseUrl = `https://en.wiktionary.org/w/api.php?action=parse&page=${encodedPaginaFinal}&prop=wikitext&format=json&origin=*`;
-        let parseResponse = await fetch(parseUrl);
-        let parseData = await parseResponse.json();
         
-        if (parseData.parse && parseData.parse.wikitext) {
-            const wikitext = parseData.parse.wikitext['*'];
-            console.log('Wikitext para', paginaFinal, ':', wikitext);
-            console.log('URL de parse:', parseUrl);
-            
-            const wikitextLower = wikitext.toLowerCase();
-            if (wikitextLower.includes('==spanish==') || wikitextLower.includes('==español==')) {
-                console.log('Contiene sección Spanish/Español:', true);
-                return true;
-            }
-        }
-
-        // Si no se encontró, buscar en el mapeo de palabras con tilde
-        if (palabrasConTilde[palabraMinuscula]) {
-            paginaFinal = palabrasConTilde[palabraMinuscula];
-            encodedPaginaFinal = encodeURIComponent(paginaFinal);
-            parseUrl = `https://en.wiktionary.org/w/api.php?action=parse&page=${encodedPaginaFinal}&prop=wikitext&format=json&origin=*`;
-            parseResponse = await fetch(parseUrl);
-            parseData = await parseResponse.json();
-
-            if (parseData.parse && parseData.parse.wikitext) {
-                const wikitext = parseData.parse.wikitext['*'];
-                console.log('Wikitext para versión con tilde', paginaFinal, ':', wikitext);
-                console.log('URL de parse:', parseUrl);
-                
-                const wikitextLower = wikitext.toLowerCase();
-                const tieneSeccionEspanol = wikitextLower.includes('==spanish==') || wikitextLower.includes('==español==');
-                console.log('Contiene sección Spanish/Español (versión con tilde):', tieneSeccionEspanol);
-                return tieneSeccionEspanol;
-            }
-        }
-
-        // Si aún no se encuentra, intentar con todas las vocales con tilde
+        // Lista de variantes a probar
+        const variantes = [
+            palabraMinuscula, // Palabra original
+            PALABRAS_CON_TILDE[palabraMinuscula] // Mapeo específico
+        ].filter(Boolean); // Eliminar undefined
+        
+        // Generar variantes con tildes si no las tiene
         if (!contieneTildes(palabraMinuscula)) {
-            const vocalesConTilde = {
-                'a': 'á', 'e': 'é', 'i': 'í', 'o': 'ó', 'u': 'ú'
-            };
+            const vocalesConTilde = { 'a': 'á', 'e': 'é', 'i': 'í', 'o': 'ó', 'u': 'ú' };
             
-            // Intentar con cada vocal
             for (const [vocal, vocalTilde] of Object.entries(vocalesConTilde)) {
                 if (palabraMinuscula.includes(vocal)) {
-                    const palabraConTilde = palabraMinuscula.replace(vocal, vocalTilde);
-                    encodedPaginaFinal = encodeURIComponent(palabraConTilde);
-                    parseUrl = `https://en.wiktionary.org/w/api.php?action=parse&page=${encodedPaginaFinal}&prop=wikitext&format=json&origin=*`;
-                    parseResponse = await fetch(parseUrl);
-                    parseData = await parseResponse.json();
-
-                    if (parseData.parse && parseData.parse.wikitext) {
-                        const wikitext = parseData.parse.wikitext['*'];
-                        console.log('Wikitext para versión con tilde en', vocal, ':', wikitext);
-                        
-                        const wikitextLower = wikitext.toLowerCase();
-                        if (wikitextLower.includes('==spanish==') || wikitextLower.includes('==español==')) {
-                            console.log('Encontrada versión válida con tilde en', vocal);
-                            return true;
-                        }
-                    }
+                    variantes.push(palabraMinuscula.replace(vocal, vocalTilde));
                 }
             }
         }
-
-        console.log('No se encontró una versión válida de la palabra');
+        
+        // Verificar cada variante
+        for (const variante of variantes) {
+            const esValida = await verificarVarianteEnWiktionary(variante);
+            if (esValida) {
+                return true;
+            }
+        }
+        
         return false;
     } catch (error) {
         console.error('Error al verificar la palabra:', error);
+        return false;
+    }
+}
+
+// Función auxiliar para verificar una variante específica en Wiktionary
+async function verificarVarianteEnWiktionary(palabra) {
+    try {
+        const encodedPalabra = encodeURIComponent(palabra);
+        const parseUrl = `https://en.wiktionary.org/w/api.php?action=parse&page=${encodedPalabra}&prop=wikitext&format=json&origin=*`;
+        
+        const response = await fetch(parseUrl);
+        const data = await response.json();
+        
+        if (data.parse && data.parse.wikitext) {
+            const wikitext = data.parse.wikitext['*'].toLowerCase();
+            return wikitext.includes('==spanish==') || wikitext.includes('==español==');
+        }
+        
+        return false;
+    } catch (error) {
+        console.error(`Error al verificar variante "${palabra}":`, error);
         return false;
     }
 }
@@ -151,7 +134,7 @@ function contieneÑ(palabra) {
     return palabra.toLowerCase().includes('ñ');
 }
 
-// Función para codificar en base64
+// Función para codificar en base64 (solo para desarrollo)
 function codificarPalabra(palabra) {
     try {
         return btoa(palabra);
@@ -160,7 +143,7 @@ function codificarPalabra(palabra) {
     }
 }
 
-// Función para decodificar base64
+// Función para decodificar base64 (solo para desarrollo)
 function decodificarPalabra(palabraCodificada) {
     try {
         return atob(palabraCodificada);
@@ -169,10 +152,119 @@ function decodificarPalabra(palabraCodificada) {
     }
 }
 
+// Sistema anti-trampa: deshabilitar DevTools en producción
+function antiTrampa() {
+    // Solo activar en producción
+    if (!CONFIG.isProduction) {
+        return; // No hacer nada en desarrollo
+    }
+
+    // Deshabilitar console completamente en producción
+    const noop = () => {};
+    const consoleMethods = ['log', 'warn', 'error', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'clear', 'time', 'timeEnd'];
+    
+    const disabledConsole = {};
+    consoleMethods.forEach(method => {
+        disabledConsole[method] = noop;
+    });
+    window.console = disabledConsole;
+    
+    // Proteger variables globales críticas
+    try {
+        Object.defineProperty(window, 'palabraObjetivo', {
+            value: undefined,
+            writable: false,
+            enumerable: false,
+            configurable: false
+        });
+    } catch (e) {
+        // Silenciar errores en producción
+    }
+    
+    // Detectar DevTools abiertos - versión optimizada
+    let devtools = { open: false };
+    const DEVTOOLS_THRESHOLD = 160;
+    const WARNING_HTML = `
+        <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
+            <h1 style="font-size:3em;margin:0;">🚫 ANTI-TRAMPA 🚫</h1>
+            <p style="font-size:1.5em;">Cierra las herramientas de desarrollador</p>
+            <p style="font-size:1em;opacity:0.8;">El juego se reiniciará automáticamente</p>
+        </div>
+    `;
+    
+    const detectDevTools = () => {
+        const heightDiff = window.outerHeight - window.innerHeight;
+        const widthDiff = window.outerWidth - window.innerWidth;
+        
+        if (heightDiff > DEVTOOLS_THRESHOLD || widthDiff > DEVTOOLS_THRESHOLD) {
+            if (!devtools.open) {
+                devtools.open = true;
+                document.body.innerHTML = WARNING_HTML;
+            }
+        } else if (devtools.open) {
+            devtools.open = false;
+            window.location.reload();
+        }
+    };
+    
+    // Verificar cada 100ms - optimizado
+    let detectionInterval = setInterval(detectDevTools, 100);
+    
+    // Limpiar interval si la página se descarga
+    window.addEventListener('beforeunload', () => {
+        if (detectionInterval) {
+            clearInterval(detectionInterval);
+        }
+    });
+    
+    // Deshabilitar teclas peligrosas
+    const BLOCKED_KEYS = ['F12'];
+    const BLOCKED_COMBOS = [
+        { ctrl: true, shift: true, key: 'I' },
+        { ctrl: true, shift: true, key: 'J' },
+        { ctrl: true, key: 'U' }
+    ];
+    
+    const keyHandler = (e) => {
+        // Verificar teclas individuales
+        if (BLOCKED_KEYS.includes(e.key)) {
+            e.preventDefault();
+            document.body.innerHTML = `
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;background:#f44336;color:white;font-family:Arial,sans-serif;text-align:center;">
+                    <h1 style="font-size:3em;margin:0;">🚫 NO HAGAS TRAMPA 🚫</h1>
+                    <p style="font-size:1.5em;">Teclas de desarrollador deshabilitadas</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Verificar combinaciones
+        for (const combo of BLOCKED_COMBOS) {
+            if ((!combo.ctrl || e.ctrlKey) && 
+                (!combo.shift || e.shiftKey) && 
+                (!combo.alt || e.altKey) && 
+                e.key === combo.key) {
+                e.preventDefault();
+                document.body.innerHTML = WARNING_HTML;
+                return;
+            }
+        }
+    };
+    
+    // Event listeners optimizados
+    document.addEventListener('contextmenu', e => e.preventDefault(), { passive: false });
+    document.addEventListener('keydown', keyHandler, { passive: false });
+}
+
 // Inicializar palabra objetivo
 function inicializarPalabraObjetivo() {
-    palabraObjetivo = palabras[Math.floor(Math.random() * palabras.length)];
-    console.log("Palabra objetivo (codificada):", codificarPalabra(palabraObjetivo));
+    palabraObjetivo = PALABRAS[Math.floor(Math.random() * PALABRAS.length)];
+    
+    // Solo mostrar en desarrollo
+    if (CONFIG.environment === 'development') {
+        console.log("🎯 Nueva palabra generada (desarrollo)");
+        console.log("📝 Palabra objetivo (codificada):", codificarPalabra(palabraObjetivo));
+    }
 }
 
 // Reiniciar juego
@@ -207,11 +299,11 @@ function reiniciarJuego() {
 function crearTablero() {
     const tablero = document.getElementById('game-board');
     
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < MAX_INTENTOS; i++) {
         const row = document.createElement('div');
         row.className = 'row';
         
-        for (let j = 0; j < 5; j++) {
+        for (let j = 0; j < PALABRA_LENGTH; j++) {
             const tile = document.createElement('div');
             tile.className = 'tile';
             row.appendChild(tile);
@@ -290,11 +382,11 @@ async function verificarPalabra() {
         tile.classList.remove('active');
     });
 
-    console.log('Palabra formada:', codificarPalabra(palabra));
+    // console.log('Palabra formada:', codificarPalabra(palabra)); // REMOVIDO: Anti-trampa
 
-    if (palabra.length !== 5) {
-        console.log('Error: La palabra no tiene 5 letras');
-        mostrarMensaje('¡La palabra debe tener 5 letras!');
+    if (palabra.length !== PALABRA_LENGTH) {
+        console.log('Error: La palabra no tiene la longitud correcta');
+        mostrarMensaje(`¡La palabra debe tener ${PALABRA_LENGTH} letras!`);
         sacudirFila();
         procesando = false;
         return;
@@ -344,8 +436,11 @@ async function verificarPalabra() {
         }
     }
 
-    console.log('Resultados:', resultados);
-    console.log('Palabra objetivo:', palabraObjetivo);
+    // Solo logs seguros en desarrollo
+    if (CONFIG.environment === 'development') {
+        console.log('🎯 Resultados del intento:', resultados);
+        console.log('📝 Comparando con:', codificarPalabra(palabraObjetivo));
+    }
 
     // Aplicar animaciones de revelado secuenciales
     for (let i = 0; i < 5; i++) {
@@ -411,7 +506,7 @@ function manejarTecla(key) {
     if (juegoTerminado) return;
 
     if (key === 'Enter' || key === 'ENTER') {
-        if (letraActual === 5) {
+        if (letraActual === PALABRA_LENGTH) {
             verificarPalabra().catch(error => {
                 console.error('Error al verificar la palabra:', error);
                 mostrarMensaje('Error al verificar la palabra. Intenta de nuevo.');
@@ -419,7 +514,7 @@ function manejarTecla(key) {
             });
             return;
         } else {
-            mostrarMensaje('¡La palabra debe tener 5 letras!');
+            mostrarMensaje(`¡La palabra debe tener ${PALABRA_LENGTH} letras!`);
             sacudirFila();
             return;
         }
@@ -436,7 +531,7 @@ function manejarTecla(key) {
         return;
     }
 
-    if (letraActual < 5 && /^[A-Za-zÁÉÍÓÚáéíóúÜü]$/.test(key)) {
+    if (letraActual < PALABRA_LENGTH && /^[A-Za-zÁÉÍÓÚáéíóúÜü]$/.test(key)) {
         const tile = document.querySelector(`.row:nth-child(${intentoActual + 1}) .tile:nth-child(${letraActual + 1})`);
         tile.textContent = key.toUpperCase();
         tile.classList.add('pop');
@@ -536,125 +631,106 @@ function alternarTema() {
 
 // ========== FUNCIONES DE AUTENTICACIÓN ==========
 
-// Inicializar sistema de autenticación simplificado
+// Inicializar Auth0 para sistema global
 async function inicializarAuth0() {
     try {
-        console.log('🔧 Inicializando sistema de autenticación...');
+        console.log('🌍 Inicializando Auth0 para sistema global...');
+        console.log('🔧 Configuración Auth0:', AUTH0_CONFIG);
         
-        // Por ahora, saltar Auth0 y usar sistema local
-        console.log('⚠️ Usando sistema de autenticación local temporal');
+        // Verificar que Auth0 SDK esté disponible con múltiples intentos
+        if (typeof auth0 === 'undefined') {
+            console.log('⏳ Auth0 SDK no detectado inmediatamente, esperando...');
+            
+            // Esperar hasta 10 segundos para que se cargue Auth0
+            for (let i = 0; i < 20; i++) {
+                await new Promise(resolve => setTimeout(resolve, 500));
+                if (typeof auth0 !== 'undefined') {
+                    console.log('✅ Auth0 SDK detectado después de esperar');
+                    break;
+                }
+            }
+            
+            if (typeof auth0 === 'undefined') {
+                throw new Error('Auth0 SDK no está disponible después de múltiples intentos.');
+            }
+        }
         
-        // Verificar si hay un usuario guardado localmente
-        const usuarioLocal = localStorage.getItem('wordle-usuario-local');
-        if (usuarioLocal) {
-            const datosUsuario = JSON.parse(usuarioLocal);
-            usuario = {
-                sub: datosUsuario.id,
-                name: datosUsuario.name,
-                email: datosUsuario.email,
-                picture: datosUsuario.picture
-            };
-            console.log('👤 Usuario local encontrado:', usuario.name);
+        auth0Client = await auth0.createAuth0Client(AUTH0_CONFIG);
+        console.log('✅ Auth0 inicializado correctamente');
+        
+        // Verificar si ya hay una sesión activa
+        const isAuthenticated = await auth0Client.isAuthenticated();
+        console.log('🔐 Usuario autenticado:', isAuthenticated);
+        
+        if (isAuthenticated) {
+            usuario = await auth0Client.getUser();
+            console.log('👤 Usuario obtenido:', usuario);
             await cargarEstadisticasUsuario();
             mostrarPanelUsuario();
         } else {
-            console.log('📋 Mostrando panel de login local');
-            mostrarPanelLoginLocal();
+            // Verificar si estamos regresando de una redirección de Auth0
+            const query = window.location.search;
+            console.log('🔄 Query string:', query);
+            
+            if (query.includes('code=') && query.includes('state=')) {
+                try {
+                    console.log('🔄 Procesando redirección de Auth0...');
+                    await auth0Client.handleRedirectCallback();
+                    usuario = await auth0Client.getUser();
+                    console.log('✅ Login exitoso:', usuario);
+                    await cargarEstadisticasUsuario();
+                    mostrarPanelUsuario();
+                    // Limpiar la URL
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                } catch (error) {
+                    console.error('❌ Error al manejar la redirección:', error);
+                    
+                    // Verificar si es problema de callback URL
+                    if (error.message.includes('callback') || error.message.includes('redirect_uri')) {
+                        console.log('🚨 Problema de callback URL. Verifica:');
+                        console.log(`📋 1. Agrega ${window.location.origin} a Auth0 Dashboard`);
+                        console.log('🔧 2. Ve a Applications → Tu App → Allowed Callback URLs');
+                        mostrarMensaje(`Configura ${window.location.origin} en Auth0 Dashboard`);
+                    }
+                    
+                    mostrarPanelLogin();
+                }
+            } else {
+                console.log('📋 Mostrando panel de login');
+                mostrarPanelLogin();
+            }
+        }
+    } catch (error) {
+        console.error('❌ Error al inicializar Auth0:', error);
+        console.error('🔍 Detalles del error:', error.message);
+        
+        // Verificar si es problema de origen seguro
+        if (error.message.includes('secure origin') || error.message.includes('https')) {
+            console.log('🚨 Auth0 requiere HTTPS. Opciones disponibles:');
+            console.log('📋 1. Usar modo invitado (funciona completamente)');
+            console.log('🔒 2. Configurar HTTPS para desarrollo');
+            console.log('🌐 3. Usar la versión online cuando esté desplegada');
+            mostrarMensaje('Auth0 requiere HTTPS. Usa modo invitado o despliega en línea.');
+        } else {
+            mostrarMensaje('Error de autenticación. Jugando como invitado.');
         }
         
-    } catch (error) {
-        console.error('❌ Error al inicializar autenticación:', error);
         iniciarModoInvitado();
     }
 }
 
-// Panel de login local simplificado
-function mostrarPanelLoginLocal() {
-    document.getElementById('auth-panel').classList.remove('hidden');
-    document.getElementById('login-container').innerHTML = `
-        <h2>¡Bienvenido a Wordle Español!</h2>
-        <p>Elige cómo quieres jugar:</p>
-        <div style="margin: 20px 0;">
-            <input type="text" id="nombre-usuario" placeholder="Tu nombre (opcional)" 
-                   style="width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 8px;">
-        </div>
-        <button id="login-local-btn" class="auth-btn" onclick="loginLocal()">
-            🎮 Jugar con Perfil
-        </button>
-        <button id="guest-btn" class="auth-btn secondary" onclick="iniciarModoInvitado()">
-            👤 Jugar como Invitado
-        </button>
-        <p style="font-size: 0.9rem; color: #666; margin-top: 15px;">
-            Con perfil: tu progreso se guarda y apareces en el ranking<br>
-            Como invitado: solo se guarda localmente
-        </p>
-    `;
-    document.getElementById('user-container').classList.add('hidden');
-    document.getElementById('game-container').style.display = 'none';
-}
-
-// Login local
-function loginLocal() {
-    const nombre = document.getElementById('nombre-usuario').value.trim() || 'Jugador';
-    const usuarioId = 'local_' + Date.now();
-    
-    const datosUsuario = {
-        id: usuarioId,
-        name: nombre,
-        email: '',
-        picture: generarAvatar(nombre)
-    };
-    
-    // Guardar usuario local
-    localStorage.setItem('wordle-usuario-local', JSON.stringify(datosUsuario));
-    
-    usuario = {
-        sub: datosUsuario.id,
-        name: datosUsuario.name,
-        email: datosUsuario.email,
-        picture: datosUsuario.picture
-    };
-    
-    console.log('✅ Login local exitoso:', usuario.name);
-    cargarEstadisticasUsuario();
-    mostrarPanelUsuario();
-}
-
-// Generar avatar simple
-function generarAvatar(nombre) {
-    const inicial = nombre.charAt(0).toUpperCase();
-    const colores = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8'];
-    const color = colores[inicial.charCodeAt(0) % colores.length];
-    
-    return `data:image/svg+xml;base64,${btoa(`
-        <svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-            <circle cx="20" cy="20" r="20" fill="${color}"/>
-            <text x="20" y="25" text-anchor="middle" fill="white" font-family="Arial" font-size="16" font-weight="bold">${inicial}</text>
-        </svg>
-    `)}`;
-}
-
-// Logout local
-function logoutLocal() {
-    localStorage.removeItem('wordle-usuario-local');
-    usuario = null;
-    mostrarPanelLoginLocal();
-}
-
-// Hacer funciones globales para que funcionen desde HTML
-window.loginLocal = loginLocal;
-window.logoutLocal = logoutLocal;
-window.iniciarModoInvitado = iniciarModoInvitado;
-
-// Función de login
+// Función de login con Auth0
 async function login() {
     try {
+        console.log('🚀 Iniciando login con Google...');
         await auth0Client.loginWithRedirect({
-            connection: 'google-oauth2',
-            prompt: 'select_account'
+            authorizationParams: {
+                connection: 'google-oauth2',
+                prompt: 'select_account'
+            }
         });
     } catch (error) {
-        console.error('Error en el login:', error);
+        console.error('❌ Error en el login:', error);
         mostrarMensaje('Error al iniciar sesión. Intenta de nuevo.');
     }
 }
@@ -662,25 +738,15 @@ async function login() {
 // Función de logout
 async function logout() {
     try {
+        console.log('👋 Cerrando sesión...');
         await auth0Client.logout({
-            returnTo: window.location.origin
+            logoutParams: {
+                returnTo: window.location.origin
+            }
         });
     } catch (error) {
-        console.error('Error en el logout:', error);
+        console.error('❌ Error en el logout:', error);
     }
-}
-
-// Iniciar modo invitado
-function iniciarModoInvitado() {
-    modoInvitado = true;
-    usuario = null;
-    usuarioStats = {
-        maxStreak: parseInt(localStorage.getItem('wordle-guest-max-streak') || '0'),
-        gamesPlayed: parseInt(localStorage.getItem('wordle-guest-games-played') || '0'),
-        currentStreak: 0
-    };
-    racha = parseInt(localStorage.getItem('wordle-guest-current-streak') || '0');
-    mostrarPanelUsuario(true);
 }
 
 // Mostrar panel de login
@@ -689,6 +755,34 @@ function mostrarPanelLogin() {
     document.getElementById('login-container').classList.remove('hidden');
     document.getElementById('user-container').classList.add('hidden');
     document.getElementById('game-container').style.display = 'none';
+}
+
+// Iniciar modo invitado
+function iniciarModoInvitado() {
+    console.log('🎮 Iniciando modo invitado...');
+    modoInvitado = true;
+    usuario = null;
+    usuarioStats = {
+        maxStreak: parseInt(localStorage.getItem('wordle-guest-max-streak') || '0'),
+        gamesPlayed: parseInt(localStorage.getItem('wordle-guest-games-played') || '0'),
+        currentStreak: 0
+    };
+    racha = parseInt(localStorage.getItem('wordle-guest-current-streak') || '0');
+    
+    console.log('📊 Estadísticas de invitado cargadas:', usuarioStats);
+    console.log('🔥 Racha actual:', racha);
+    
+    mostrarPanelUsuario(true);
+    
+    // Simular scoreboard local para invitados
+    if (!window.localStorage.getItem('wordle-guest-scoreboard-init')) {
+        console.log('🆕 Inicializando scoreboard local para invitados...');
+        const guestScoreboard = [
+            { name: 'Usuario Invitado', maxStreak: usuarioStats.maxStreak, gamesPlayed: usuarioStats.gamesPlayed, country: { flag: '🎮', name: 'Modo Local' } }
+        ];
+        localStorage.setItem('wordle-guest-scoreboard', JSON.stringify(guestScoreboard));
+        localStorage.setItem('wordle-guest-scoreboard-init', 'true');
+    }
 }
 
 // Mostrar panel de usuario
@@ -759,58 +853,51 @@ async function guardarEstadisticasUsuario() {
     }
 }
 
-// Actualizar scoreboard global
+// Actualizar scoreboard global usando base de datos
 async function actualizarScoreboardGlobal() {
     if (!usuario || modoInvitado) return;
     
     try {
-        // Simular envío a servidor (reemplazar con tu API)
-        const scoreboardKey = 'wordle-global-scoreboard';
-        let scoreboard = JSON.parse(localStorage.getItem(scoreboardKey) || '[]');
-        
-        // Buscar si el usuario ya existe en el scoreboard
-        const userIndex = scoreboard.findIndex(entry => entry.userId === usuario.sub);
-        
-        const userEntry = {
-            userId: usuario.sub,
-            name: usuario.name,
-            email: usuario.email,
-            picture: usuario.picture,
-            maxStreak: usuarioStats.maxStreak,
-            gamesPlayed: usuarioStats.gamesPlayed,
-            lastUpdated: Date.now()
-        };
-        
-        if (userIndex >= 0) {
-            scoreboard[userIndex] = userEntry;
-        } else {
-            scoreboard.push(userEntry);
-        }
-        
-        // Ordenar por racha máxima
-        scoreboard.sort((a, b) => b.maxStreak - a.maxStreak);
-        
-        // Mantener solo los top 100
-        scoreboard = scoreboard.slice(0, 100);
-        
-        localStorage.setItem(scoreboardKey, JSON.stringify(scoreboard));
-        
+        console.log('🌍 Actualizando scoreboard global...');
+        await baseDatosGlobal.actualizarUsuario(usuario, usuarioStats);
+        console.log('✅ Scoreboard global actualizado');
     } catch (error) {
-        console.error('Error al actualizar scoreboard global:', error);
+        console.error('❌ Error al actualizar scoreboard global:', error);
     }
 }
 
-// Cargar scoreboard global
+// Cargar scoreboard global desde base de datos
 async function cargarScoreboardGlobal() {
     try {
-        // Simular carga desde servidor (reemplazar con tu API)
-        const scoreboardKey = 'wordle-global-scoreboard';
-        const scoreboard = JSON.parse(localStorage.getItem(scoreboardKey) || '[]');
+        // Si estamos en modo invitado, usar scoreboard local
+        if (modoInvitado) {
+            console.log('📋 Cargando scoreboard local (modo invitado)');
+            const localScoreboard = localStorage.getItem('wordle-guest-scoreboard');
+            if (localScoreboard) {
+                const scoreboard = JSON.parse(localScoreboard);
+                // Actualizar con stats actuales
+                scoreboard[0] = {
+                    name: 'Usuario Invitado',
+                    maxStreak: usuarioStats.maxStreak,
+                    gamesPlayed: usuarioStats.gamesPlayed,
+                    country: { flag: '🎮', name: 'Modo Local' },
+                    joinDate: new Date().toISOString()
+                };
+                localStorage.setItem('wordle-guest-scoreboard', JSON.stringify(scoreboard));
+                return scoreboard;
+            }
+            return [{
+                name: 'Usuario Invitado',
+                maxStreak: usuarioStats.maxStreak,
+                gamesPlayed: usuarioStats.gamesPlayed,
+                country: { flag: '🎮', name: 'Modo Local' },
+                joinDate: new Date().toISOString()
+            }];
+        }
         
-        return scoreboard.sort((a, b) => b.maxStreak - a.maxStreak);
-        
+        return await baseDatosGlobal.obtenerScoreboard();
     } catch (error) {
-        console.error('Error al cargar scoreboard:', error);
+        console.error('❌ Error al cargar scoreboard global:', error);
         return [];
     }
 }
@@ -857,15 +944,47 @@ async function mostrarScoreboard() {
                     rankIcon = '🥉';
                 }
                 
-                item.innerHTML = `
-                    <div class="scoreboard-rank ${rankClass}">${rankIcon || rank}</div>
-                    <img class="scoreboard-avatar" src="${entry.picture || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNEREQiLz4KPGNpcmNsZSBjeD0iMjAiIGN5PSIxNiIgcj0iNiIgZmlsbD0iIzk5OSIvPgo8cGF0aCBkPSJNMzAgMzJDMzAgMjcuNTggMjUuNTIgMjQgMjAgMjRTMTAgMjcuNTggMTAgMzIiIGZpbGw9IiM5OTkiLz4KPC9zdmc+'}" alt="${entry.name}">
-                    <div class="scoreboard-info">
-                        <div class="scoreboard-name">${entry.name}</div>
-                        <div class="scoreboard-games">${entry.gamesPlayed} partidas</div>
-                    </div>
-                    <div class="scoreboard-streak">${entry.maxStreak} 🔥</div>
-                `;
+                const country = entry.country || { flag: '🌍', name: 'Desconocido' };
+                const joinDate = entry.joinDate ? new Date(entry.joinDate).toLocaleDateString() : 'Reciente';
+                
+                // SOLUCIÓN XSS: Crear elementos seguros sin innerHTML
+                const rankDiv = document.createElement('div');
+                rankDiv.className = `scoreboard-rank ${rankClass}`;
+                rankDiv.textContent = rankIcon || rank;
+                
+                const avatar = document.createElement('img');
+                avatar.className = 'scoreboard-avatar';
+                avatar.src = entry.picture || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNEREQiLz4KPGNpcmNsZSBjeD0iMjAiIGN5PSIxNiIgcj0iNiIgZmlsbD0iIzk5OSIvPgo8cGF0aCBkPSJNMzAgMzJDMzAgMjcuNTggMjUuNTIgMjQgMjAgMjRTMTAgMjcuNTggMTAgMzIiIGZpbGw9IiM5OTkiLz4KPC9zdmc+';
+                avatar.alt = entry.name; // textContent automáticamente sanitizado
+                
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'scoreboard-info';
+                
+                const nameDiv = document.createElement('div');
+                nameDiv.className = 'scoreboard-name';
+                nameDiv.textContent = `${entry.name} ${country.flag}`; // ✅ XSS SAFE
+                
+                const gamesDiv = document.createElement('div');
+                gamesDiv.className = 'scoreboard-games';
+                gamesDiv.textContent = `${entry.gamesPlayed} partidas • Se unió: ${joinDate}`; // ✅ XSS SAFE
+                
+                const countryDiv = document.createElement('div');
+                countryDiv.className = 'scoreboard-country';
+                countryDiv.textContent = country.name; // ✅ XSS SAFE
+                
+                const streakDiv = document.createElement('div');
+                streakDiv.className = 'scoreboard-streak';
+                streakDiv.textContent = `${entry.maxStreak} 🔥`; // ✅ XSS SAFE
+                
+                // Ensamblar estructura segura
+                infoDiv.appendChild(nameDiv);
+                infoDiv.appendChild(gamesDiv);
+                infoDiv.appendChild(countryDiv);
+                
+                item.appendChild(rankDiv);
+                item.appendChild(avatar);
+                item.appendChild(infoDiv);
+                item.appendChild(streakDiv);
                 
                 scoreboardList.appendChild(item);
             });
@@ -922,6 +1041,9 @@ function manejarFinJuego(ganado) {
 
 // Inicializar el juego
 document.addEventListener('DOMContentLoaded', async () => {
+    // Activar sistema anti-trampa
+    antiTrampa();
+    
     cargarTema();
     
     // Esperar a que se cargue completamente la página
@@ -943,14 +1065,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     crearTecladoVirtual();
     actualizarRacha();
     
-    // Event listeners para autenticación (se configuran dinámicamente)
-    // Los botones se crean dinámicamente en mostrarPanelLoginLocal()
-    
-    // Event listener para logout si existe el botón
-    const logoutBtn = document.getElementById('logout-btn');
-    if (logoutBtn) {
-        logoutBtn.addEventListener('click', logoutLocal);
-    }
+    // Event listeners para autenticación
+    document.getElementById('login-btn').addEventListener('click', login);
+    document.getElementById('guest-btn').addEventListener('click', iniciarModoInvitado);
+    document.getElementById('logout-btn').addEventListener('click', logout);
     
     // Event listeners para scoreboard
     document.getElementById('scoreboard-btn').addEventListener('click', mostrarScoreboard);
