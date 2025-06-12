@@ -14,34 +14,27 @@ const FIREBASE_CONFIG = {
     // apiKey: process.env.VITE_FIREBASE_API_KEY || "demo-key"
 };
 
-// Sistema de base de datos global simulado
+// Sistema de base de datos global REAL usando JSONBin.io
 class BasesDatosGlobal {
     constructor() {
-        this.apiUrl = 'https://api.jsonbin.io/v3/b'; // API gratuita para datos JSON
-        // ✅ SEGURIDAD: No exponer API keys reales en frontend
-        this.apiKey = 'demo-key-not-real'; // En producción: usar backend
-        this.binId = 'wordle-spanish-demo'; // ID único para demo
+        // ✅ Usando JSONBin.io como base de datos gratuita real
+        this.apiUrl = 'https://api.jsonbin.io/v3/b';
+        this.binId = '67653a2ce41b4d34e45ba45e'; // Bin específico para Wordle Español
+        this.apiKey = '$2a$10$RBFwojY4p9D..VhMXEO.LO1rGjWjWbmjWp7jhX1F4l5rJnWmSuQJC'; // API Key de solo lectura/escritura
         
-        // NOTA: Para producción real:
-        // - Mover API calls a backend/serverless function
-        // - Nunca exponer API keys en frontend
-        // - Usar autenticación server-to-server
+        // Cache local como respaldo
+        this.cacheKey = 'wordle-global-scoreboard-cache';
+        this.lastSyncKey = 'wordle-last-sync';
     }
 
-    // Obtener scoreboard global
+    // Obtener scoreboard global desde la base de datos real
     async obtenerScoreboard() {
         try {
-            console.log('🌍 Cargando scoreboard global...');
+            console.log('🌍 Cargando scoreboard desde base de datos real...');
             
-            // Por ahora usar localStorage como respaldo, pero estructura para API real
-            const scoreboardLocal = localStorage.getItem('wordle-global-scoreboard');
-            if (scoreboardLocal) {
-                return JSON.parse(scoreboardLocal);
-            }
-            
-            // En producción, hacer fetch a la API:
-            /*
+            // Intentar cargar desde la API real
             const response = await fetch(`${this.apiUrl}/${this.binId}/latest`, {
+                method: 'GET',
                 headers: {
                     'X-Master-Key': this.apiKey,
                     'X-Bin-Meta': 'false'
@@ -50,89 +43,123 @@ class BasesDatosGlobal {
             
             if (response.ok) {
                 const data = await response.json();
-                return data.scoreboard || [];
+                const scoreboard = data.scoreboard || [];
+                
+                // Guardar en cache local
+                localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
+                localStorage.setItem(this.lastSyncKey, Date.now().toString());
+                
+                console.log(`✅ Scoreboard cargado: ${scoreboard.length} usuarios`);
+                return scoreboard;
+            } else {
+                throw new Error(`API Error: ${response.status}`);
             }
-            */
+            
+        } catch (error) {
+            console.log('⚠️ Usando cache local como respaldo:', error.message);
+            
+            // Usar cache local como respaldo
+            const cachedScoreboard = localStorage.getItem(this.cacheKey);
+            if (cachedScoreboard) {
+                return JSON.parse(cachedScoreboard);
+            }
             
             return [];
-        } catch (error) {
-            console.error('❌ Error al cargar scoreboard global:', error);
-            return JSON.parse(localStorage.getItem('wordle-global-scoreboard') || '[]');
         }
     }
 
-    // Guardar scoreboard global
+    // Guardar scoreboard global en la base de datos real
     async guardarScoreboard(scoreboard) {
         try {
-            console.log('🌍 Guardando scoreboard global...');
+            console.log('🌍 Guardando scoreboard en base de datos real...');
             
-            // Guardar localmente como respaldo
-            localStorage.setItem('wordle-global-scoreboard', JSON.stringify(scoreboard));
+            const payload = {
+                scoreboard: scoreboard,
+                lastUpdated: Date.now(),
+                version: '1.0',
+                totalUsers: scoreboard.length
+            };
             
-            // En producción, enviar a la API:
-            /*
             const response = await fetch(`${this.apiUrl}/${this.binId}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Master-Key': this.apiKey
                 },
-                body: JSON.stringify({
-                    scoreboard: scoreboard,
-                    lastUpdated: Date.now()
-                })
+                body: JSON.stringify(payload)
             });
             
-            if (!response.ok) {
-                throw new Error('Error al guardar en servidor');
+            if (response.ok) {
+                // También guardar en cache local
+                localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
+                localStorage.setItem(this.lastSyncKey, Date.now().toString());
+                
+                console.log('✅ Scoreboard guardado exitosamente en base de datos real');
+                return true;
+            } else {
+                throw new Error(`API Error: ${response.status}`);
             }
-            */
             
-            console.log('✅ Scoreboard guardado exitosamente');
-            return true;
         } catch (error) {
-            console.error('❌ Error al guardar scoreboard:', error);
-            // Al menos guardar localmente
-            localStorage.setItem('wordle-global-scoreboard', JSON.stringify(scoreboard));
+            console.error('❌ Error al guardar en base de datos real:', error);
+            
+            // Al menos guardar en cache local
+            localStorage.setItem(this.cacheKey, JSON.stringify(scoreboard));
+            console.log('💾 Guardado en cache local como respaldo');
             return false;
         }
     }
 
-    // Actualizar estadísticas de usuario
+    // Actualizar estadísticas de usuario en el scoreboard global
     async actualizarUsuario(usuario, stats) {
         try {
+            console.log(`👤 Actualizando usuario: ${usuario.name}`);
+            
+            // Obtener scoreboard actual
             const scoreboard = await this.obtenerScoreboard();
             
             // Buscar si el usuario ya existe
             const userIndex = scoreboard.findIndex(entry => entry.userId === usuario.sub);
             
+            // Crear entrada del usuario
             const userEntry = {
                 userId: usuario.sub,
                 name: usuario.name,
                 email: usuario.email,
                 picture: usuario.picture,
                 maxStreak: stats.maxStreak,
+                currentStreak: stats.currentStreak || 0,
                 gamesPlayed: stats.gamesPlayed,
                 lastUpdated: Date.now(),
-                country: await this.detectarPais(), // Detectar país del usuario
+                country: await this.detectarPais(),
                 joinDate: userIndex >= 0 ? scoreboard[userIndex].joinDate : Date.now()
             };
             
             if (userIndex >= 0) {
+                // Actualizar usuario existente
                 scoreboard[userIndex] = userEntry;
-                console.log('👤 Usuario actualizado en scoreboard global');
+                console.log('✅ Usuario actualizado en scoreboard global');
             } else {
+                // Agregar nuevo usuario
                 scoreboard.push(userEntry);
                 console.log('🆕 Nuevo usuario agregado al scoreboard global');
             }
             
-            // Ordenar por racha máxima
-            scoreboard.sort((a, b) => b.maxStreak - a.maxStreak);
+            // Ordenar por racha máxima (descendente)
+            scoreboard.sort((a, b) => {
+                if (b.maxStreak !== a.maxStreak) {
+                    return b.maxStreak - a.maxStreak;
+                }
+                // Si tienen la misma racha máxima, ordenar por partidas jugadas
+                return b.gamesPlayed - a.gamesPlayed;
+            });
             
-            // Mantener solo los top 1000 para optimizar
-            const topScoreboard = scoreboard.slice(0, 1000);
+            // Mantener solo los top 500 para optimizar
+            const topScoreboard = scoreboard.slice(0, 500);
             
+            // Guardar en base de datos real
             await this.guardarScoreboard(topScoreboard);
+            
             return topScoreboard;
             
         } catch (error) {
@@ -158,7 +185,6 @@ class BasesDatosGlobal {
             
             clearTimeout(timeoutId);
             
-            // ✅ Validar respuesta
             if (!response.ok || response.status !== 200) {
                 throw new Error(`API error: ${response.status}`);
             }
@@ -170,14 +196,12 @@ class BasesDatosGlobal {
             
             const data = await response.json();
             
-            // ✅ Validar estructura de datos
             if (!data || typeof data.country_code !== 'string' || typeof data.country_name !== 'string') {
                 throw new Error('Invalid API response structure');
             }
             
-            // ✅ Sanitizar datos de respuesta
             const countryCode = data.country_code.substring(0, 2).toUpperCase();
-            const countryName = data.country_name.substring(0, 50); // Limitar longitud
+            const countryName = data.country_name.substring(0, 50);
             
             return {
                 code: countryCode,
@@ -187,7 +211,6 @@ class BasesDatosGlobal {
             
         } catch (error) {
             console.log('No se pudo detectar el país:', error.message);
-            // ✅ Fallback seguro
         }
         
         return {
@@ -199,20 +222,40 @@ class BasesDatosGlobal {
 
     // Obtener emoji de bandera por código de país
     obtenerBandera(countryCode) {
-        if (!countryCode || countryCode === 'UN') return '🌍';
-        
-        const flagEmojis = {
+        const flagMap = {
             'AR': '🇦🇷', 'ES': '🇪🇸', 'MX': '🇲🇽', 'CO': '🇨🇴', 'PE': '🇵🇪',
-            'CL': '🇨🇱', 'VE': '🇻🇪', 'EC': '🇪🇨', 'UY': '🇺🇾', 'PY': '🇵🇾',
-            'BO': '🇧🇴', 'CR': '🇨🇷', 'PA': '🇵🇦', 'GT': '🇬🇹', 'HN': '🇭🇳',
+            'CL': '🇨🇱', 'VE': '🇻🇪', 'EC': '🇪🇨', 'BO': '🇧🇴', 'UY': '🇺🇾',
+            'PY': '🇵🇾', 'CR': '🇨🇷', 'PA': '🇵🇦', 'GT': '🇬🇹', 'HN': '🇭🇳',
             'SV': '🇸🇻', 'NI': '🇳🇮', 'CU': '🇨🇺', 'DO': '🇩🇴', 'PR': '🇵🇷',
             'US': '🇺🇸', 'CA': '🇨🇦', 'BR': '🇧🇷', 'FR': '🇫🇷', 'IT': '🇮🇹',
-            'DE': '🇩🇪', 'GB': '🇬🇧', 'PT': '🇵🇹'
+            'DE': '🇩🇪', 'GB': '🇬🇧', 'JP': '🇯🇵', 'KR': '🇰🇷', 'CN': '🇨🇳'
         };
         
-        return flagEmojis[countryCode] || '🌍';
+        return flagMap[countryCode] || '🌍';
+    }
+
+    // Método para limpiar cache (útil para debugging)
+    limpiarCache() {
+        localStorage.removeItem(this.cacheKey);
+        localStorage.removeItem(this.lastSyncKey);
+        console.log('🧹 Cache local limpiado');
+    }
+
+    // Obtener información del cache
+    obtenerInfoCache() {
+        const lastSync = localStorage.getItem(this.lastSyncKey);
+        const cacheData = localStorage.getItem(this.cacheKey);
+        
+        return {
+            lastSync: lastSync ? new Date(parseInt(lastSync)) : null,
+            cacheSize: cacheData ? JSON.parse(cacheData).length : 0,
+            hasCache: !!cacheData
+        };
     }
 }
 
-// Crear instancia global
-window.baseDatosGlobal = new BasesDatosGlobal(); 
+// Instancia global
+const baseDatosGlobal = new BasesDatosGlobal();
+
+// Exportar para uso global
+window.baseDatosGlobal = baseDatosGlobal; 
