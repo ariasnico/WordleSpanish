@@ -164,7 +164,9 @@ function antiTrampa() {
                      window.innerWidth <= 768 || 
                      'ontouchstart' in window;
 
-    // Deshabilitar console completamente en producción
+    // TEMPORALMENTE: Habilitar console para debug del scoreboard
+    // TODO: Volver a deshabilitar cuando se resuelva el problema
+    /*
     const noop = () => {};
     const consoleMethods = ['log', 'warn', 'error', 'info', 'debug', 'trace', 'table', 'group', 'groupEnd', 'clear', 'time', 'timeEnd'];
     
@@ -173,6 +175,8 @@ function antiTrampa() {
         disabledConsole[method] = noop;
     });
     window.console = disabledConsole;
+    */
+    console.log('🔧 DEBUG MODE: Console habilitado temporalmente para diagnosticar scoreboard');
     
     // Proteger variables globales críticas
     try {
@@ -839,6 +843,37 @@ function mostrarPanelUsuario(esInvitado = false) {
 
 // ========== FUNCIONES DE ESTADÍSTICAS Y SCOREBOARD ==========
 
+// DEBUG: Función para verificar el estado del scoreboard
+async function debugScoreboard() {
+    console.log('🔍 === DEBUG SCOREBOARD ===');
+    console.log('👤 Usuario actual:', usuario?.name || 'No autenticado');
+    console.log('🎮 Modo invitado:', modoInvitado);
+    console.log('📊 Stats actuales:', usuarioStats);
+    
+    try {
+        // Probar llamada directa a la API
+        console.log('🌐 Probando API directa...');
+        const response = await fetch(`${window.location.origin}/api/scoreboard`);
+        console.log('📡 Response status:', response.status);
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('📋 Datos del servidor:', data);
+            console.log('👥 Número de usuarios:', data.length);
+        } else {
+            console.error('❌ Error en respuesta:', await response.text());
+        }
+    } catch (error) {
+        console.error('❌ Error en fetch:', error);
+    }
+    
+    // Verificar cache local
+    const cache = localStorage.getItem('wordle-global-scoreboard-cache');
+    console.log('💾 Cache local:', cache ? JSON.parse(cache) : 'No hay cache');
+    
+    console.log('🔍 === FIN DEBUG ===');
+}
+
 // Cargar estadísticas del usuario desde el servidor
 async function cargarEstadisticasUsuario() {
     if (!usuario) return;
@@ -865,12 +900,17 @@ async function cargarEstadisticasUsuario() {
 // Guardar estadísticas del usuario
 async function guardarEstadisticasUsuario() {
     try {
+        console.log('💾 Iniciando guardado de estadísticas...');
+        
         if (modoInvitado) {
             // Guardar en localStorage para invitados
             localStorage.setItem('wordle-guest-max-streak', usuarioStats.maxStreak.toString());
             localStorage.setItem('wordle-guest-games-played', usuarioStats.gamesPlayed.toString());
             localStorage.setItem('wordle-guest-current-streak', racha.toString());
+            console.log('🎮 Estadísticas de invitado guardadas');
         } else if (usuario) {
+            console.log('👤 Guardando para usuario autenticado:', usuario.name);
+            
             // Guardar para usuarios autenticados
             const statsKey = `wordle-stats-${usuario.sub}`;
             localStorage.setItem(statsKey, JSON.stringify(usuarioStats));
@@ -878,8 +918,14 @@ async function guardarEstadisticasUsuario() {
             const currentStreakKey = `wordle-current-streak-${usuario.sub}`;
             localStorage.setItem(currentStreakKey, racha.toString());
             
+            console.log('📊 Stats guardadas localmente:', usuarioStats);
+            
             // También enviar al scoreboard global
+            console.log('🌍 Enviando al scoreboard global...');
             await actualizarScoreboardGlobal();
+            
+            // DEBUG: Verificar inmediatamente
+            await debugScoreboard();
         }
     } catch (error) {
         console.error('Error al guardar estadísticas:', error);
